@@ -4,25 +4,53 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
-### Added
-
-- Initial public import of the working system:
-  - `poller` (CronJob), `ner` (GLiNER) and `laya` (fine-tuned Laya) services around a Postgres queue.
-  - Kubernetes manifests for k3s, a namespace-scoped deploy identity, and a kube-prometheus-stack configuration with four generated Grafana dashboards.
-  - Training and evaluation tooling for the Laya fine-tune, the labelling rubric, and the evaluation reports.
-  - Documentation for newcomers in `README.md` and `docs/`.
-
-- GitHub Actions CI (ruff, shellcheck, pytest with a Postgres service, dashboard freshness, kubeconform, image builds), Dependabot, `make lint` and `make test`, and an 85-test suite covering NER post-processing, Laya answer handling, the poller (including the conditional-GET path) and the Postgres queue.
-
-- Helm chart `charts/tickertape` replacing the plain manifests for the `tickertape` namespace (rendered output verified identical to the previous manifests, so adopting the live install restarts nothing), `scripts/helm.sh`, a Helm-based `scripts/deploy.sh`, and `make chart-check` (also run in CI). The schema file moved to `charts/tickertape/files/schema.sql`.
-
-- Release workflow (`.github/workflows/release.yml`) with independent versions: `poller-vX.Y.Z`, `ner-vX.Y.Z` and `laya-vX.Y.Z` tags publish one image to GHCR, `chart-vX.Y.Z` packages the chart (after checking that the images it pins exist) and each creates a GitHub Release from the changelog. Per-service `VERSION` files; the chart pins an explicit image tag per service and no longer has an `appVersion`. `docs/releasing.md` describes versioning and the release procedure.
+## ner 0.1.1 - 2026-10-04
 
 ### Fixed
 
-- `ner`: the "money words" rule (`million`, `billion`, ...) never matched because its regular expression had been corrupted (backspace characters instead of word boundaries), so MONEY entities without a digit, such as "a billion dollars", were dropped. Found by the new tests.
+- The "money words" rule (`million`, `billion`, ...) never matched, because its regular expression had been corrupted (backspace characters instead of word boundaries). MONEY entities without a digit, such as "a billion dollars", were dropped; they are kept now. Focus-ticker resolution is not affected.
 
-### History before the first release (images built from this code)
+### Changed
 
-- Poller, ner and laya images `0.1.0`: first end-to-end pipeline on a CPU-only k3s node.
-- Laya image `0.1.1`: serves the fine-tuned model and stores the probability of the chosen answer as `confidence` (the previous entropy-based value was about 0.1 on average).
+- Internal only: import ordering from the new lint rules.
+
+## laya 0.1.2 - 2026-10-04
+
+### Changed
+
+- The "Invalid JSON" error in the UI now keeps the original exception as its cause.
+- Internal only: import ordering from the new lint rules. The model, the questions and the stored answers are unchanged.
+
+## poller 0.1.1 - 2026-10-04
+
+### Changed
+
+- Internal only: `datetime.UTC` and import ordering from the new lint rules. Behaviour is unchanged.
+
+## laya 0.1.1 - 2026-10-03
+
+### Changed
+
+- Serves the fine-tuned model `avinoamn/tickertape-laya` (pinned by commit) instead of the public base model, with an optional read token for the private repository.
+
+### Fixed
+
+- The stored `confidence` is the probability of the chosen answer. It was Laya's entropy-based value, about 0.1 on average, which made the low-confidence panel meaningless.
+
+## ner 0.1.0 - 2026-10-03
+
+### Added
+
+- First version: GLiNER entity extraction and focus-ticker resolution (SEC company list), worker loop, UI and metrics. Built and run locally on the cluster only; never published to a registry.
+
+## poller 0.1.0 - 2026-10-03
+
+### Added
+
+- First version: feed fetching with conditional requests, normalisation and idempotent inserts, as a CronJob. Built and run locally on the cluster only; never published to a registry.
+
+## laya 0.1.0 - 2026-10-03
+
+### Added
+
+- First version: Laya decisions (event type, sentiment, action) with the public base model, worker loop, UI and metrics. Built and run locally on the cluster only; never published to a registry.
