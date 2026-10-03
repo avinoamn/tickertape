@@ -1,5 +1,5 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.14.1
+torch==2.14.1+cpu
 gliner==0.2.29
 transformers==5.16.1
 sentencepiece==0.2.2  # DeBERTa tokenizer conversion; GLiNER fails to load without it
