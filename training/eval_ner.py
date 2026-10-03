@@ -18,8 +18,9 @@ import re
 import sys
 from collections import Counter, defaultdict
 
-from common.db import connect
 from core import STORE_FLOOR, THRESHOLD, CompanyIndex, FocusResolver, entities_from_stored, load_sec_raw, load_watchlist
+
+from common.db import connect
 
 SWEEP = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 

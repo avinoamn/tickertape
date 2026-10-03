@@ -2,12 +2,12 @@
 import os
 import time
 
+from core import SVC, Extractor, compact_spans, group_entities, item_text
 from prometheus_client import Counter, Histogram
 from psycopg.types.json import Jsonb
 
 from common.db import claim, connect, record_failure
 from common.logging import log
-from core import SVC, Extractor, compact_spans, group_entities, item_text
 
 BATCH_SIZE = int(os.environ.get("NER_BATCH_SIZE", "16"))
 IDLE_SLEEP = float(os.environ.get("NER_IDLE_SLEEP", "5"))

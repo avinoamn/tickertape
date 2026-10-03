@@ -5,9 +5,9 @@ import threading
 os.environ.setdefault("USE_TF", "0")  # before importing laya/transformers
 
 import laya  # noqa: E402
+from questions import QUESTIONS  # noqa: E402
 
 from common.logging import log  # noqa: E402
-from questions import QUESTIONS  # noqa: E402
 
 SVC = "laya"
 MODEL = os.environ.get("LAYA_MODEL", "convaiinnovations/laya")

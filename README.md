@@ -1,5 +1,8 @@
 # tickertape
 
+[![CI](https://github.com/avinoamn/tickertape/actions/workflows/ci.yml/badge.svg)](https://github.com/avinoamn/tickertape/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
 A small, self-hosted pipeline that reads stock-market news feeds, extracts the companies and tickers in each story, and classifies every item with a fine-tuned model. Results are stored in Postgres and shown in Grafana.
 
 It runs on a single-node Kubernetes (k3s) home server, on CPU only: Postgres, three Python services, and Prometheus/Grafana. It is a learning project and a showcase of building, evaluating and operating a small ML pipeline end to end. It is **not trading advice**: the `alert` label only means "a human should look at this".

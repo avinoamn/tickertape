@@ -12,6 +12,12 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
   - Training and evaluation tooling for the Laya fine-tune, the labelling rubric, and the evaluation reports.
   - Documentation for newcomers in `README.md` and `docs/`.
 
+- GitHub Actions CI (ruff, shellcheck, pytest with a Postgres service, dashboard freshness, kubeconform, image builds), Dependabot, `make lint` and `make test`, and an 85-test suite covering NER post-processing, Laya answer handling, the poller (including the conditional-GET path) and the Postgres queue.
+
+### Fixed
+
+- `ner`: the "money words" rule (`million`, `billion`, ...) never matched because its regular expression had been corrupted (backspace characters instead of word boundaries), so MONEY entities without a digit, such as "a billion dollars", were dropped. Found by the new tests.
+
 ### History before the first release (images built from this code)
 
 - Poller, ner and laya images `0.1.0`: first end-to-end pipeline on a CPU-only k3s node.

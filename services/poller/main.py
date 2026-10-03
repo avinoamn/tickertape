@@ -5,7 +5,7 @@ import html
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -50,7 +50,7 @@ def make_uid(entry) -> str | None:
 
 def published_at(entry) -> datetime | None:
     t = entry.get("published_parsed") or entry.get("updated_parsed")
-    return datetime.fromtimestamp(calendar.timegm(t), tz=timezone.utc) if t else None
+    return datetime.fromtimestamp(calendar.timegm(t), tz=UTC) if t else None
 
 
 def expand_feeds(cfg: dict) -> list[dict]:

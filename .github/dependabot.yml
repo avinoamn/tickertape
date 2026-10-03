@@ -1,0 +1,45 @@
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}
+    groups:
+      actions: {patterns: ["*"]}
+
+  # Dev and test tooling (requirements-dev.txt)
+  - package-ecosystem: pip
+    directory: /
+    schedule: {interval: weekly}
+    groups:
+      dev-tools: {patterns: ["*"]}
+
+  # Service dependencies. The ML libraries are pinned on purpose: an update is a PR whose CI builds the
+  # image, and a human decides whether the model behaves the same afterwards.
+  - package-ecosystem: pip
+    directory: /services/poller
+    schedule: {interval: weekly}
+  - package-ecosystem: pip
+    directory: /services/ner
+    schedule: {interval: weekly}
+    open-pull-requests-limit: 3
+  - package-ecosystem: pip
+    directory: /services/laya
+    schedule: {interval: weekly}
+    open-pull-requests-limit: 3
+
+  # Base images
+  - package-ecosystem: docker
+    directory: /services/poller
+    schedule: {interval: weekly}
+  - package-ecosystem: docker
+    directory: /services/ner
+    schedule: {interval: weekly}
+  - package-ecosystem: docker
+    directory: /services/laya
+    schedule: {interval: weekly}
+
+  # postgres, prometheus and grafana images used by the local stack
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule: {interval: weekly}

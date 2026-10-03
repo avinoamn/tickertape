@@ -2,13 +2,13 @@
 import os
 import time
 
+from core import SVC, Predictor, build_state, flatten
 from prometheus_client import Counter, Histogram
 from psycopg.types.json import Jsonb
+from questions import QUESTIONS
 
 from common.db import claim, connect, record_failure
 from common.logging import log
-from core import SVC, Predictor, build_state, flatten
-from questions import QUESTIONS
 
 # Small on purpose: rows stay locked until the batch commits, and one item takes seconds on computa's CPU.
 BATCH_SIZE = int(os.environ.get("LAYA_BATCH_SIZE", "4"))

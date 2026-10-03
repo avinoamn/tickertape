@@ -1,9 +1,8 @@
 """ner service entrypoint: model once, then metrics (8000), worker thread, Gradio UI (7860)."""
 import threading
 
-from prometheus_client import start_http_server
-
 from core import Extractor
+from prometheus_client import start_http_server
 from ui import build_ui
 from worker import run_loop
 

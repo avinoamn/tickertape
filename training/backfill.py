@@ -34,8 +34,9 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "services" / "poller"))
-from common.db import connect  # noqa: E402
 from main import SUMMARY_MAX, clean_text, make_uid, published_at  # noqa: E402  (the poller's own helpers)
+
+from common.db import connect  # noqa: E402
 
 OUT = ROOT / "training" / "data" / "backfill.jsonl"
 FEEDS = yaml.safe_load((ROOT / "services" / "poller" / "feeds.yaml").read_text())["feeds"]
