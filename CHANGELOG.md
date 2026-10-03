@@ -4,6 +4,17 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## chart 0.2.0 - 2026-10-04
+
+### Added
+
+- First release of the Helm chart for the `tickertape` namespace: Postgres (StatefulSet and volume), the schema (applied by a hook Job after every install and upgrade), the poller CronJob, ner and laya (Deployments, model-cache volumes, ClusterIP and NodePort Services), Ingresses, and ServiceMonitors (only when the Prometheus Operator CRDs exist). Secrets stay outside the chart and are referenced by name.
+- Pins one image tag per service, so a chart version names an exact set of images: `poller` 0.1.1, `ner` 0.1.1, `laya` 0.1.2.
+
+### Changed
+
+- Replaces the plain manifests. The rendered objects are identical to those manifests, so adopting a live install restarts nothing; the first deploy of this version moves the three services from locally built images to the public GHCR images, which restarts them once.
+
 ## ner 0.1.1 - 2026-10-04
 
 ### Fixed
