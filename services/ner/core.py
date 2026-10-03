@@ -164,7 +164,7 @@ class Extractor:
 
 
 _EXCHANGE_PREFIX = re.compile(r"^(NASDAQ(GS|GM|CM)?|NYSE(ARCA|AMERICAN)?|AMEX|OTC)\s*[:\s]\s*", re.I)
-_MONEY_WORDS = re.compile(r"(thousand|million|billion|trillion)", re.I)
+_MONEY_WORDS = re.compile(r"\b(thousand|million|billion|trillion)\b", re.I)
 
 
 def clean_entity(key: str, text: str, valid_tickers: set[str] | None) -> str | None:
