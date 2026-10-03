@@ -64,11 +64,14 @@ Earlier versions of this project were deployed with plain manifests. Helm refuse
 ```sh
 scripts/kc.sh exec -n tickertape postgres-0 -- pg_dump -U tickertape -Fc tickertape > tickertape-before-helm.dump
 scripts/kc.sh delete job db-init -n tickertape --ignore-not-found      # the hook Job recreates it
-scripts/helm.sh upgrade --install tickertape charts/tickertape --take-ownership --dry-run=server   # review: what would change
-scripts/deploy.sh --take-ownership
+scripts/helm.sh upgrade --install tickertape charts/tickertape --take-ownership --dry-run=server   # must succeed
+helm template tickertape charts/tickertape -n tickertape --api-versions monitoring.coreos.com/v1 | scripts/kc.sh diff -f -   # review: only added labels and the Job
+scripts/helm.sh upgrade --install tickertape charts/tickertape --take-ownership --wait --timeout 20m   # the adoption itself
 ```
 
-Afterwards `scripts/helm.sh list` shows the release, the pods keep their age, and the item count in Postgres is unchanged. From then on use plain `make deploy`.
+**Do not use `--atomic` (and so not `scripts/deploy.sh`) for the adoption run.** If a first install fails, `--atomic` uninstalls the release, and uninstalling a release that adopted live objects deletes them: the Postgres StatefulSet (its volume claim survives, but the database goes down), the Deployments and the model caches. Without `--atomic`, a failure leaves the release marked as failed and every object in place, and you fix the problem and run the same command again. The same applies to `helm uninstall`: never run it on this release unless you mean to take the namespace down.
+
+Afterwards `scripts/helm.sh list` shows the release, the pods keep their age, and the item count in Postgres is unchanged. From then on use plain `make deploy` (with `--atomic`: an upgrade that fails rolls back to the previous revision, which is safe).
 
 ### Secrets
 
