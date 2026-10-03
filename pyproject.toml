@@ -1,0 +1,19 @@
+# Tooling config only: the services are not installable packages (each has its own requirements.txt).
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+extend-exclude = ["training/data", "*.ipynb"]   # the Kaggle notebook is kept exactly as it ran
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+# Style rules the existing code deliberately does not follow: long lines in comments/messages, printf-style
+# formatting in small scripts, zip() without strict=.
+ignore = ["E501", "UP031", "B905"]
+
+[tool.ruff.lint.per-file-ignores]
+"training/*" = ["E741", "B007", "E402"]   # one-off research scripts
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = ["db: needs a Postgres reachable through TEST_DATABASE_URL (skipped otherwise)"]

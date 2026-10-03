@@ -2,7 +2,6 @@
 import json
 
 import gradio as gr
-
 from core import Predictor
 from questions import QUESTIONS
 
@@ -21,7 +20,7 @@ def build_ui(pred: Predictor) -> gr.Blocks:
         try:
             state, questions = json.loads(state_text), json.loads(questions_text)
         except json.JSONDecodeError as exc:
-            raise gr.Error(f"Invalid JSON: {exc}")
+            raise gr.Error(f"Invalid JSON: {exc}") from exc
         result = pred.predict(state, questions)
         table = [
             [q, a.get("choice"), round(a.get("confidence", float("nan")), 3),

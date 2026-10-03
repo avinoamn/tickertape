@@ -28,13 +28,19 @@ os.environ.setdefault("USE_TF", "0")  # before importing transformers
 
 import torch  # noqa: E402
 from huggingface_hub import snapshot_download  # noqa: E402
-from safetensors.torch import load_file, save_file  # noqa: E402
-from transformers import AutoTokenizer  # noqa: E402
-
 from laya.agent import _fix_tokenizer_config  # noqa: E402
 from laya.common import (  # noqa: E402
-    QTYPES, TEMP_MAX, TEMP_MIN, build_model, build_sequence, proper_reward, render_options, temp_bucket,
+    QTYPES,
+    TEMP_MAX,
+    TEMP_MIN,
+    build_model,
+    build_sequence,
+    proper_reward,
+    render_options,
+    temp_bucket,
 )
+from safetensors.torch import load_file, save_file  # noqa: E402
+from transformers import AutoTokenizer  # noqa: E402
 
 BASE_MODEL = "convaiinnovations/laya"
 BASE_REVISION = "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851"  # the revision laya pins and the cluster runs today
@@ -264,7 +270,7 @@ def main():
 
     def half_state():
         return {k: (v.detach().to("cpu", torch.float16).clone() if v.is_floating_point() else v.detach().cpu().clone())
-                for k, v in model.state_dict().items()}
+                for k, v in model.state_dict().items()}  # noqa: F821 (closure over `model`, which is deleted only after training)
 
     log = {"epochs": [], "train_items": len(train_items), "train_rows": len(train_rows), "val_items": len(val_items),
            "val_rows": len(val_rows), "base_model": args.base_model, "base_revision": args.base_revision}

@@ -24,9 +24,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "services" / "laya")]
-from common.db import connect  # noqa: E402
 from core import build_state  # noqa: E402  (imports laya, does not load the model)
 from questions import QUESTIONS  # noqa: E402
+
+from common.db import connect  # noqa: E402
 
 DATA = ROOT / "training" / "data"
 SPLIT, LABELS, BACKFILL = DATA / "split.jsonl", DATA / "labels.jsonl", DATA / "backfill.jsonl"

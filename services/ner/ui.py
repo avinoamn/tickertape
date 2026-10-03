@@ -1,6 +1,5 @@
 """Gradio UI: try the NER model on any text."""
 import gradio as gr
-
 from core import LABELS, Extractor, group_entities
 
 EXAMPLE = ("NVIDIA reports record Q3 revenue of $18.1 billion, up 206% year over year, "
