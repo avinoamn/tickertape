@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build a service image from the repo root: scripts/build.sh <service> [tag]
 # The tag defaults to the contents of services/<service>/VERSION (the version of the code in this tree).
-# No mutable tags (k3s uses IfNotPresent). To deploy a local image, point the chart at it (docs/operations.md).
+# For checking a Dockerfile locally. Released images are built by CI from a release tag (docs/releasing.md).
 set -euo pipefail
 svc=${1:?usage: build.sh <service> [tag]}
 cd "$(dirname "$0")/.."

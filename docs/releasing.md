@@ -61,7 +61,7 @@ Running the workflow manually (Actions, "Release", Run workflow, pick a componen
 
 ## One-time setup
 
-- **Make each package public.** GHCR creates a package as private the first time it is pushed. After the first release of each service (`tickertape-poller`, `tickertape-ner`, `tickertape-laya`): GitHub profile, Packages, the package, Package settings, Change visibility, Public. The anonymous pull check fails with exactly this instruction until it is done; after changing the setting, re-run that job and the release continues. Once public, a cluster pulls the images without any Secret.
+- **Package visibility.** Clusters pull the images anonymously, so each package (`tickertape-poller`, `tickertape-ner`, `tickertape-laya`) must be public. For this repository GHCR made them public on their own, because the packages are linked to the public repository through the image's source label, and the workflow's anonymous pull check confirms it on every release. If a package ever shows up as private (a fork, or a changed setting), the check fails with the fix: GitHub profile, Packages, the package, Package settings, Change visibility, Public; then re-run that job and the release continues.
 
 ## When something fails
 
@@ -69,7 +69,7 @@ Running the workflow manually (Actions, "Release", Run workflow, pick a componen
 |---|---|
 | **Verify** (tag format, version file, changelog, not on main, CI not green) | Nothing was published. Delete the tag (`git push origin :refs/tags/<tag>` and `git tag -d <tag>`), fix it in a PR, and tag again. |
 | **Image build**, or **chart pin check** | Nothing was published for that component. Fix the cause and re-run the failed job, or delete the tag and start over if the fix needs a new commit. |
-| **Anonymous pull check** | Make the package public (above) and re-run the job. |
+| **Anonymous pull check** | The package is private: make it public (see "Package visibility") and re-run the job. |
 | **After an image was pushed** (release creation failed, or a bug found) | Do not move or reuse the tag: its image exists and may have been pulled. Re-run the failed job if it is only the release step; otherwise fix forward with the next patch version. |
 
 ## Rolling back a deployment

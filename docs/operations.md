@@ -87,13 +87,21 @@ read -s HF_READ_TOKEN; export HF_READ_TOKEN; scripts/create-hf-secret.sh; unset 
 
 Create Secrets before upgrading a release that references them: ner and laya use the `Recreate` strategy, so a missing Secret leaves the old pod stopped and the new one unable to start.
 
-## Releasing a new version of a service
+## Deploying a new version of a service
 
-Published releases (images on GHCR, one version per service, pinned by the chart) are described in [releasing.md](releasing.md). Until the first ones are published, or to try unreleased code, use the local flow, which deploys a locally built image by pointing the chart at it:
+Each service and the chart are released separately ([releasing.md](releasing.md)). To get a change onto the cluster:
 
-1. Change the code, build with a **new** tag (`make build SVC=laya TAG=0.1.2-dev`) and import it (`make push SVC=laya TAG=0.1.2-dev`). Tags are explicit and never `latest`, and `imagePullPolicy` is `IfNotPresent`, so an existing tag would not be re-pulled.
-2. Point the chart at the local image for this one deploy (or edit `values.yaml`): `make deploy HELM_ARGS="--set laya.image.repository=tickertape/laya --set laya.image.tag=0.1.2-dev"`. Only that service restarts.
-3. `make deploy` and watch `scripts/kc.sh rollout status deployment/laya -n tickertape`.
+1. **Release the service**: version bump and changelog in a PR, merge, push the `<service>-vX.Y.Z` tag. The release workflow publishes the image to GHCR.
+2. **Release the chart** with the new pin: `values.yaml` (`<service>.image.tag`), the chart version and the changelog in a PR, merge, push the `chart-vX.Y.Z` tag.
+3. **Optionally pre-pull** the new image so the pause is only the model load. ner and laya use the `Recreate` strategy, so the old pod stops before the new one pulls its image, and the pull (about 70 s for each of them) is added to the pause. A throwaway pod caches the image on the node without touching the running pods:
+   ```sh
+   scripts/kc.sh run prepull-ner -n tickertape --image=ghcr.io/<owner>/tickertape-ner:0.2.0 --restart=Never --command -- true
+   scripts/kc.sh wait --for=jsonpath='{.status.phase}'=Succeeded pod/prepull-ner -n tickertape --timeout=10m
+   scripts/kc.sh delete pod prepull-ner -n tickertape
+   ```
+4. **Deploy** from the chart tag's checkout: `git switch --detach chart-vX.Y.Z && make deploy`. Only the services whose pin changed restart. Watch with `scripts/kc.sh rollout status deployment/<service> -n tickertape`.
+
+Unreleased code is tried locally with docker compose ([development.md](development.md)); it is not deployed to the cluster.
 
 ner and laya reload their model on every start (about a minute), during which that stage pauses; items wait in Postgres and nothing is lost. To undo a bad release: `scripts/helm.sh rollback tickertape` (to the previous revision) or `scripts/helm.sh history tickertape` and `rollback tickertape <revision>`.
 

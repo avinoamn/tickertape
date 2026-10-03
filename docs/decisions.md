@@ -52,7 +52,7 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **Every UI gets its own NodePort Service, separate from the ClusterIP Service that carries metrics.** The UIs must open from any device on the private network without a tunnel or per-device setup. They have no authentication, so they stay on a private network.
 
-**Images use explicit version tags and `imagePullPolicy: IfNotPresent`.** Mutable tags and `latest` make a rollout depend on what the node cached. Until a registry exists, images are built locally and imported into k3s.
+**Images use explicit version tags and `imagePullPolicy: IfNotPresent`.** Mutable tags and `latest` make a rollout depend on what the node cached. Images come from the registry only (see Releases); the early flow of building locally and importing into k3s by hand (`docker save`, `scp`, `sudo k3s ctr images import`) was retired once the release workflow had published and deployed the first versions, because it needed a sudo password and a terminal, and produced images nobody else could reproduce.
 
 **laya has a CPU limit of 2 cores and matching thread counts.** Uncapped it took 3.5 of the node's 4 cores and starved everything else. Torch threads must match the limit or they are throttled.
 
