@@ -83,7 +83,7 @@ A local smoke test without a GPU is possible for the head only (full training ne
 
 ### 5. Roll out and iterate
 
-To use a new model, set `LAYA_MODEL` and `LAYA_REVISION` (the pushed commit hash) in `k8s/laya.yaml`, and for a private repository create the `hf-read-token` Secret ([docs/operations.md](../docs/operations.md#changing-or-rolling-back-the-laya-model)). To retrain with more data: label more items with `make dataset`, `export`, re-upload `train.jsonl` and `val.jsonl`, run the notebook with a new `HF_REPO` or a new commit, evaluate with `make eval-laya` under a new `--name`, and compare with `report`.
+To use a new model, set `LAYA_MODEL` and `LAYA_REVISION` (the pushed commit hash) in `charts/tickertape/values.yaml` (`laya.model`, `laya.revision`), and for a private repository create the `hf-read-token` Secret ([docs/operations.md](../docs/operations.md#changing-or-rolling-back-the-laya-model)). To retrain with more data: label more items with `make dataset`, `export`, re-upload `train.jsonl` and `val.jsonl`, run the notebook with a new `HF_REPO` or a new commit, evaluate with `make eval-laya` under a new `--name`, and compare with `report`.
 
 ## Reports
 

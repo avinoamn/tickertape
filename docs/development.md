@@ -14,7 +14,7 @@ Everything runs locally in Docker against a throwaway Postgres. Nothing in this 
 
 | Service | Start with | Where |
 |---|---|---|
-| Postgres 16 with `db/schema.sql` applied on first start | `make dev-up` | `localhost:5432` |
+| Postgres 16 with the chart's `schema.sql` applied on first start | `make dev-up` | `localhost:5432` |
 | poller (runs once and exits) | `make dev-poll` | needs `SEC_USER_AGENT` for the SEC feed |
 | ner | `docker compose up -d --build ner` | UI <http://localhost:7860>, metrics `:8000/metrics` |
 | laya | `docker compose up -d --build laya` | UI <http://localhost:7861>, metrics `:8001/metrics` |
@@ -47,6 +47,7 @@ docker compose exec db psql -U tickertape -c "select status, count(*) from items
 ```sh
 make lint                       # ruff, in a python:3.12 container
 make test                       # pytest, in a python:3.12 container, against the dev database (make dev-up)
+make chart-check                # helm lint + render + kubeconform, in containers
 make dashboards                 # regenerate grafana/dashboards/*.json
 docker compose --profile monitoring up -d
 make verify-dashboards          # runs every panel query against the local Grafana and reports errors / empty panels

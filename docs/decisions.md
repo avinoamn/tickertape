@@ -72,6 +72,20 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **One summary job (`CI passed`) is what branch protection requires.** The list of checks can change without touching the repository settings.
 
+## Helm chart
+
+**One chart for the namespace, with fixed resource names.** The live resources already had plain names (`ner`, `laya`, `postgres`). Keeping them lets the existing install be adopted instead of recreated, at the price of one release per namespace.
+
+**The defaults reproduce the previous manifests exactly, and the pod templates keep only the label `app: <name>`.** A pod template change restarts the pod, and ner and laya reload their model on every start, so the chart's standard labels live on object metadata only. A field-by-field comparison of the rendered output with the old manifests (17 objects, zero differences) is how adoption is known to be a no-op.
+
+**Secrets stay outside the chart and are referenced by name.** A chart that creates Secrets either stores them in values (in git) or regenerates them on upgrade (locking the database out of its own volume).
+
+**The schema is a ConfigMap applied by a post-install and post-upgrade hook Job.** The schema is idempotent, so applying it on every release is safe, and the hook runs after Postgres is ready. The file moved into the chart because Helm cannot read files outside it; docker-compose and the tests read it from there, so there is one copy.
+
+**ServiceMonitors render only when the CRDs exist.** The chart installs on a cluster without the Prometheus Operator, and picks them up on the next upgrade once it is installed.
+
+**Deploys use `helm upgrade --install --atomic` as the namespace-scoped deployer account.** Helm stores its release state in Secrets inside the namespace, which that account may already manage, so no extra permissions were needed. Rollback is `helm rollback`.
+
 ## Release engineering (in progress)
 
-Planned and tracked in the issues: a public container registry (GHCR) instead of importing images by hand, a Helm chart for the `tickertape` namespace, SemVer with one version for the whole repository, GitHub Actions for CI and release, and deploys started manually from GitHub over Tailscale. The reasoning will be recorded here as each piece ships.
+Planned and tracked in the issues: a public container registry (GHCR) instead of importing images by hand, SemVer with one version for the whole repository, GitHub Actions for CI and release, and deploys started manually from GitHub over Tailscale. The reasoning will be recorded here as each piece ships.

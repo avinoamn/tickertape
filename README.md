@@ -73,9 +73,9 @@ More in [docs/development.md](docs/development.md).
 
 ## Running it on Kubernetes
 
-The `k8s/` folder holds the manifests for the `tickertape` namespace (Postgres StatefulSet, poller CronJob, ner and laya Deployments with their services and ingress). Monitoring is installed separately with Helm (`k8s/monitoring/values.yaml`, kube-prometheus-stack). Step-by-step instructions, including the one-time cluster bootstrap, secrets, rollout and rollback, are in [docs/operations.md](docs/operations.md).
+The `tickertape` namespace is one Helm chart, `charts/tickertape` (Postgres StatefulSet, schema Job, poller CronJob, ner and laya Deployments with their services, ingress and ServiceMonitors). Settings are in its `values.yaml`; Secrets are created separately and referenced by name. Monitoring is a second Helm release (`k8s/monitoring/values.yaml`, kube-prometheus-stack). Step-by-step instructions, including the one-time cluster bootstrap, secrets, rollout and rollback, are in [docs/operations.md](docs/operations.md).
 
-Releases and deployments are currently manual (build images locally, import them into k3s, `make deploy`). A container registry, a Helm chart, SemVer releases and GitHub Actions for CI and deploys are the next planned work; see the open issues.
+Releases are still manual: build the images locally, import them into k3s, then `make deploy` (a `helm upgrade --install --atomic`). A container registry, SemVer releases and GitHub Actions workflows for releasing and deploying are the next planned work; see the open issues.
 
 ## Repository layout
 
@@ -83,8 +83,8 @@ Releases and deployments are currently manual (build images locally, import them
 |---|---|
 | `services/poller`, `services/ner`, `services/laya` | The three services, each with its own `Dockerfile` and pinned `requirements.txt` |
 | `common/` | Shared code: database helpers (claim and retry logic) and JSON logging |
-| `db/schema.sql` | Idempotent schema: `items`, `decisions`, `feed_state` |
-| `k8s/` | Kubernetes manifests and the monitoring Helm values |
+| `charts/tickertape/` | The Helm chart: Postgres, poller, ner, laya, services, ingress, ServiceMonitors, and the idempotent schema (`files/schema.sql`: `items`, `decisions`, `feed_state`) |
+| `k8s/` | Namespace and deploy-identity RBAC (applied once by an admin), and the monitoring Helm values |
 | `grafana/` | Dashboard generator (`gen_dashboards.py` is the source of truth), generated JSON, and a checker that runs every panel query |
 | `training/` | Dataset building, labelling rubric, fine-tuning script and notebook, evaluation, and reports |
 | `scripts/`, `Makefile` | Build, deploy and operations helpers (`make help` lists them) |

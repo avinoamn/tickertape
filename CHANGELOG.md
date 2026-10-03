@@ -14,6 +14,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 - GitHub Actions CI (ruff, shellcheck, pytest with a Postgres service, dashboard freshness, kubeconform, image builds), Dependabot, `make lint` and `make test`, and an 85-test suite covering NER post-processing, Laya answer handling, the poller (including the conditional-GET path) and the Postgres queue.
 
+- Helm chart `charts/tickertape` replacing the plain manifests for the `tickertape` namespace (rendered output verified identical to the previous manifests, so adopting the live install restarts nothing), `scripts/helm.sh`, a Helm-based `scripts/deploy.sh`, and `make chart-check` (also run in CI). The schema file moved to `charts/tickertape/files/schema.sql`.
+
 ### Fixed
 
 - `ner`: the "money words" rule (`million`, `billion`, ...) never matched because its regular expression had been corrupted (backspace characters instead of word boundaries), so MONEY entities without a digit, such as "a billion dollars", were dropped. Found by the new tests.
