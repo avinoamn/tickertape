@@ -17,8 +17,9 @@ image:
 
 # Image repositories and tags. Each service has its own version (services/<svc>/VERSION) and this chart pins one tag
 # per service: deploying a chart version deploys exactly that set, and bumping one service restarts only that service.
-# Tags are required and explicit: never `latest`. Until the first releases are published (see the issue tracker) these
-# point at images built locally and imported into the node (scripts/build.sh, scripts/ship.sh).
+# Tags are required and explicit: never `latest`. The images are public on GHCR (docs/releasing.md). To run a locally
+# built image instead, override both values for that service, e.g.
+#   --set ner.image.repository=tickertape/ner --set ner.image.tag=0.1.2-dev
 postgres:
   image: postgres:16-alpine
   storage: 5Gi
@@ -28,7 +29,7 @@ postgres:
     limits: {memory: 1Gi}
 
 poller:
-  image: {repository: tickertape/poller, tag: "0.1.0"}
+  image: {repository: ghcr.io/avinoamn/tickertape-poller, tag: "0.1.1"}
   schedule: "*/5 * * * *"
   activeDeadlineSeconds: 240
   resources:
@@ -36,7 +37,7 @@ poller:
     limits: {memory: 256Mi}
 
 ner:
-  image: {repository: tickertape/ner, tag: "0.1.0"}
+  image: {repository: ghcr.io/avinoamn/tickertape-ner, tag: "0.1.1"}
   # Model cache volume (ReadWriteOnce, so the Deployment uses the Recreate strategy)
   cache: {size: 5Gi, storageClass: local-path}
   # The UI gets its own NodePort Service so it opens at http://<node>:<nodePort> without a tunnel. No authentication:
@@ -47,7 +48,7 @@ ner:
     limits: {memory: 2Gi}
 
 laya:
-  image: {repository: tickertape/laya, tag: "0.1.1"}
+  image: {repository: ghcr.io/avinoamn/tickertape-laya, tag: "0.1.2"}
   # Model and optional commit pin. Public base model: convaiinnovations/laya with no revision.
   model: avinoamn/tickertape-laya
   revision: b02c4f5ce4fe47515d697cb0e6d5f100c5c413b8
