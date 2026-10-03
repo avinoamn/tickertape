@@ -12,7 +12,7 @@ TAG   ?= 0.1.0
 PF_SVC  ?= postgres
 PF_PORT ?= 5432
 
-.PHONY: dashboards verify-dashboards monitoring-secrets monitoring-install eval-ner backfill dataset eval-laya help bootstrap build push deploy port-forward dev-up dev-down dev-poll status logs
+.PHONY: lint test dashboards verify-dashboards monitoring-secrets monitoring-install eval-ner backfill dataset eval-laya help bootstrap build push deploy port-forward dev-up dev-down dev-poll status logs
 
 help:
 	@echo "make bootstrap                      one-time admin step: namespace + deployer RBAC + ~/.kube/tickertape (CHANGES CLUSTER STATE)"
@@ -25,6 +25,7 @@ help:
 	@echo "make backfill ARGS=\"cnbc|sec ...\"   step 5: add historical items to the DEV DB (training/backfill.py)"
 	@echo "make dataset ARGS=\"select|status|batch|add|export\"   step 5: build the Laya training/gold dataset (training/build_dataset.py)"
 	@echo "make eval-laya ARGS=\"predict --name base --model ...\"   step 5: cache a checkpoint's answers on the gold set (training/eval_laya.py); report: python training/eval_laya.py report base ft"
+	@echo "make lint | test               ruff and pytest in a python:3.12 container (test uses the dev DB from make dev-up in a throw-away schema)"
 	@echo "make dashboards                      regenerate grafana/dashboards/*.json from grafana/gen_dashboards.py"
 	@echo "make verify-dashboards              run every dashboard query through a live Grafana (local rig by default)"
 	@echo "make monitoring-secrets             step 4 part 1: namespace, Grafana secrets, read-only DB role (CHANGES CLUSTER STATE)"
@@ -89,3 +90,12 @@ monitoring-secrets:
 
 monitoring-install:
 	scripts/install-monitoring.sh
+
+# Lint and tests run in a container: the code needs Python 3.12 and the host Python is often older.
+# `test` uses the dev database from `make dev-up`; every test gets its own throw-away schema, so dev data is untouched.
+PYIMG ?= python:3.12-slim
+lint:
+	MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR):/work" -w /work $(PYIMG) sh -c "pip install -q -r requirements-dev.txt 2>&1 | grep -iv -e notice -e warning; ruff check ."
+
+test:
+	MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR):/work" -w /work --add-host host.docker.internal:host-gateway 	  -e TEST_DATABASE_URL=$${TEST_DATABASE_URL:-postgresql://tickertape:dev@host.docker.internal:5432/tickertape} 	  $(PYIMG) sh -c "pip install -q -r requirements-dev.txt 2>&1 | grep -iv -e notice -e warning; pytest -q"
