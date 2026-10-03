@@ -19,6 +19,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))  # `common` package
 
+SCHEMA_SQL = ROOT / "charts" / "tickertape" / "files" / "schema.sql"  # shipped in the chart, also mounted by docker-compose
+
 os.environ.setdefault("FEEDS_FILE", str(ROOT / "services" / "poller" / "feeds.yaml"))  # read by ner and poller at import
 
 
@@ -59,7 +61,7 @@ def poller():
 
 @pytest.fixture
 def db_connect():
-    """connect() -> a new connection whose tables live in a fresh schema with db/schema.sql applied."""
+    """connect() -> a new connection whose tables live in a fresh schema with the chart's schema.sql applied."""
     url = os.environ.get("TEST_DATABASE_URL")
     if not url:
         pytest.skip("TEST_DATABASE_URL is not set")
@@ -76,7 +78,7 @@ def db_connect():
         return conn
 
     setup = connect()
-    setup.execute((ROOT / "db" / "schema.sql").read_text())
+    setup.execute(SCHEMA_SQL.read_text())
     setup.commit()
     yield connect
     for conn in opened:
@@ -85,6 +87,11 @@ def db_connect():
             conn.close()
     with psycopg.connect(url, autocommit=True) as admin:
         admin.execute(f"DROP SCHEMA {schema} CASCADE")
+
+
+@pytest.fixture(scope="session")
+def schema_sql():
+    return SCHEMA_SQL.read_text()
 
 
 @pytest.fixture

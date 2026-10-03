@@ -1,0 +1,27 @@
+{{- if .Values.ingress.enabled }}
+{{- range $name := list "ner" "laya" }}
+{{- $host := (index $.Values.ingress $name).host }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tickertape.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  {{- with $.Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ $host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $name }}
+                port: {name: ui}
+{{- end }}
+{{- end }}

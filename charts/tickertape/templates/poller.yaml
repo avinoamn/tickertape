@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: poller
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: poller
+spec:
+  schedule: {{ .Values.poller.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: {{ .Values.poller.activeDeadlineSeconds }}
+      template:
+        spec:
+          {{- include "tickertape.pullSecrets" . | nindent 10 }}
+          restartPolicy: Never
+          containers:
+            - name: poller
+              image: {{ include "tickertape.image" (dict "image" .Values.poller.image "root" .) }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              env:
+                - name: DATABASE_URL
+                  valueFrom: {secretKeyRef: {name: {{ .Values.secrets.postgres }}, key: DATABASE_URL}}
+                - name: SEC_USER_AGENT
+                  valueFrom: {secretKeyRef: {name: {{ .Values.secrets.secUserAgent }}, key: SEC_USER_AGENT}}
+              resources:
+                {{- toYaml .Values.poller.resources | nindent 16 }}

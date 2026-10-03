@@ -1,0 +1,16 @@
+tickertape {{ .Chart.AppVersion }} installed in namespace {{ .Release.Namespace }} (release {{ .Release.Name }}).
+
+The model services load their models on first start (several minutes: ner ~1 GB, laya ~0.8 GB).
+
+  kubectl -n {{ .Release.Namespace }} get pods
+{{- if eq .Values.ner.ui.type "NodePort" }}
+  ner UI:   http://<node>:{{ .Values.ner.ui.nodePort }}
+{{- end }}
+{{- if eq .Values.laya.ui.type "NodePort" }}
+  laya UI:  http://<node>:{{ .Values.laya.ui.nodePort }}
+{{- end }}
+
+Trigger a poll now instead of waiting for the schedule:
+  kubectl -n {{ .Release.Namespace }} create job poller-manual-$(date +%s) --from=cronjob/poller
+
+The UIs have no authentication: keep them on a private network.

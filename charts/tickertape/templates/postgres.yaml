@@ -1,9 +1,10 @@
-# Credentials come from Secret "postgres-credentials" (created by scripts/create-secrets.sh, never committed).
 apiVersion: v1
 kind: Service
 metadata:
   name: postgres
-  namespace: tickertape
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
 spec:
   selector: {app: postgres}
   ports:
@@ -13,7 +14,9 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgres
-  namespace: tickertape
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
 spec:
   serviceName: postgres
   replicas: 1
@@ -23,18 +26,19 @@ spec:
     metadata:
       labels: {app: postgres}
     spec:
+      {{- include "tickertape.pullSecrets" . | nindent 6 }}
       containers:
         - name: postgres
-          image: postgres:16-alpine
+          image: {{ .Values.postgres.image }}
           ports:
             - {name: pg, containerPort: 5432}
           env:
             - name: POSTGRES_USER
-              valueFrom: {secretKeyRef: {name: postgres-credentials, key: POSTGRES_USER}}
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.postgres }}, key: POSTGRES_USER}}
             - name: POSTGRES_PASSWORD
-              valueFrom: {secretKeyRef: {name: postgres-credentials, key: POSTGRES_PASSWORD}}
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.postgres }}, key: POSTGRES_PASSWORD}}
             - name: POSTGRES_DB
-              valueFrom: {secretKeyRef: {name: postgres-credentials, key: POSTGRES_DB}}
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.postgres }}, key: POSTGRES_DB}}
             - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
           readinessProbe:
             exec: {command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]}
@@ -45,15 +49,16 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
           resources:
-            requests: {cpu: 100m, memory: 256Mi}
-            limits: {memory: 1Gi}
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
           volumeMounts:
             - {name: data, mountPath: /var/lib/postgresql/data}
+  # Immutable once created: changing the claim template needs a new StatefulSet. The volume holds the only
+  # irreplaceable data, and Helm never deletes the claims it creates from this template.
   volumeClaimTemplates:
     - metadata:
         name: data
       spec:
         accessModes: [ReadWriteOnce]
-        storageClassName: local-path
+        {{- include "tickertape.storageClass" .Values.postgres.storageClass | nindent 8 }}
         resources:
-          requests: {storage: 5Gi}
+          requests: {storage: {{ .Values.postgres.storage }}}

@@ -72,14 +72,16 @@ jobs:
             || { echo "::error::grafana/dashboards is out of date: run 'make dashboards' and commit the result"; exit 1; }
 
   manifests:
-    name: Kubernetes manifests
+    name: Helm chart and manifests
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - name: kubeconform
+      - name: Plain manifests (namespace, RBAC)
         run: |
           docker run --rm -v "$PWD:/work" ghcr.io/yannh/kubeconform:v0.8.0 \
             -strict -ignore-missing-schemas -ignore-filename-pattern 'monitoring/.*' -summary /work/k8s
+      - name: Chart (helm lint, render several value sets, kubeconform)
+        run: make chart-check
 
   images:
     name: Build image (${{ matrix.service }})

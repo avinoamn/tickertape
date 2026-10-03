@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hf-cache-laya
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: laya
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- include "tickertape.storageClass" .Values.laya.cache.storageClass | nindent 2 }}
+  resources:
+    requests: {storage: {{ .Values.laya.cache.size }}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: laya
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: laya
+spec:
+  replicas: 1
+  strategy: {type: Recreate}   # RWO cache volume + large memory limit: never run two pods at once
+  selector:
+    matchLabels: {app: laya}
+  template:
+    metadata:
+      labels: {app: laya}
+    spec:
+      {{- include "tickertape.pullSecrets" . | nindent 6 }}
+      containers:
+        - name: laya
+          image: {{ include "tickertape.image" (dict "image" .Values.laya.image "root" .) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - {name: ui, containerPort: 7860}
+            - {name: metrics, containerPort: 8000}
+          env:
+            - name: DATABASE_URL
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.postgres }}, key: DATABASE_URL}}
+            - name: USE_TF
+              value: "0"
+            # Match the CPU limit: torch would otherwise start one thread per core (nproc) and get throttled.
+            - name: OMP_NUM_THREADS
+              value: {{ .Values.laya.threads | quote }}
+            - name: MKL_NUM_THREADS
+              value: {{ .Values.laya.threads | quote }}
+            - name: LAYA_MODEL
+              value: {{ .Values.laya.model }}
+            {{- with .Values.laya.revision }}
+            - name: LAYA_REVISION
+              value: {{ . }}
+            {{- end }}
+            {{- with .Values.secrets.hfToken }}
+            - name: HF_TOKEN              # the name huggingface_hub reads; value = read token for a private repository
+              valueFrom: {secretKeyRef: {name: {{ . }}, key: HF_READ_TOKEN}}
+            {{- end }}
+          readinessProbe:       # /metrics only starts after the model is loaded
+            httpGet: {path: /metrics, port: metrics}
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.laya.resources | nindent 12 }}
+          volumeMounts:
+            - {name: hf-cache, mountPath: /root/.cache/huggingface}
+      volumes:
+        - name: hf-cache
+          persistentVolumeClaim: {claimName: hf-cache-laya}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: laya
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app: laya
+    app.kubernetes.io/component: laya
+spec:
+  selector: {app: laya}
+  ports:
+    - {name: ui, port: 7860, targetPort: ui}
+    - {name: metrics, port: 8000, targetPort: metrics}
+---
+# The UI on its own Service: http://<node>:<nodePort> (same pattern as ner-ui). Metrics stay on the Service above.
+apiVersion: v1
+kind: Service
+metadata:
+  name: laya-ui
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app: laya
+    app.kubernetes.io/component: laya
+spec:
+  type: {{ .Values.laya.ui.type }}
+  selector: {app: laya}
+  ports:
+    - name: ui
+      port: 7860
+      targetPort: ui
+      {{- if eq .Values.laya.ui.type "NodePort" }}
+      nodePort: {{ .Values.laya.ui.nodePort }}
+      {{- end }}

@@ -46,9 +46,9 @@ A worker claims a batch with `SELECT ... WHERE status = %s ORDER BY created_at, 
 
 Batch sizes: ner claims 16 rows at a time, laya claims 4 (inference takes seconds per item, so small claims keep row locks short). Both sleep 5 seconds when there is nothing to do.
 
-## Data model (`db/schema.sql`)
+## Data model (`charts/tickertape/files/schema.sql`)
 
-The schema is idempotent (`IF NOT EXISTS` everywhere) and is applied by an init Job on every deploy.
+The schema is idempotent (`IF NOT EXISTS` everywhere) and is applied by a Helm hook Job after every install and upgrade. The file lives in the chart so Helm can ship it; docker-compose mounts the same file for local development.
 
 - **`items`**: one row per news item. `uid` is `sha256(guid or link)` and is unique, which is what makes polling idempotent (`INSERT ... ON CONFLICT (uid) DO NOTHING`). Also: source, title, summary (HTML stripped, about 1,000 characters), link, `published_at`, `status`, `attempts`, `error`, NER output (`entities` as JSON by label, `focus_ticker`, `ner_spans`), the raw Laya answers (`decisions`), and timestamps and durations for each stage.
 - **`decisions`**: Laya's answers flattened to one row per item and question (`answer`, `confidence`, `model_rev`), so Grafana can use plain SQL. The primary key is `(item_id, question)` and writes are upserts, so re-running an item with a newer model overwrites the old answers. `model_rev` records which model produced them.
@@ -103,6 +103,8 @@ Four Grafana dashboards are generated from `grafana/gen_dashboards.py` (the sour
 `grafana/verify_dashboards.py` runs every panel query through Grafana's query API and reports errors and empty panels.
 
 ## Kubernetes layout
+
+Everything below is one Helm chart (`charts/tickertape`, see [operations.md](operations.md#the-helm-chart)), except the namespace, RBAC and Secrets and the monitoring stack.
 
 - Postgres: StatefulSet with a 5 Gi `local-path` volume and a Secret for credentials.
 - ner and laya: one replica each, strategy `Recreate` (they each own a ReadWriteOnce volume that caches the Hugging Face models, so two pods must never run at once). Memory limits 2 Gi (ner) and 3.5 Gi (laya); laya is also limited to 2 CPU cores with `OMP_NUM_THREADS=MKL_NUM_THREADS=2`, because uncapped it starved the rest of a 4-core node. Readiness probes use `/metrics`, which only starts after the model has loaded.

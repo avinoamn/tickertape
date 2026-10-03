@@ -1,0 +1,70 @@
+# Default values for the tickertape chart. The chart installs into the namespace given to Helm (-n); it does not
+# create the namespace, RBAC or Secrets (see docs/operations.md). Resource names are fixed (postgres, poller, ner,
+# laya, ...), so install one release per namespace.
+
+# Names of Secrets that already exist in the namespace (created by scripts/create-secrets.sh and friends).
+secrets:
+  # keys: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, DATABASE_URL
+  postgres: postgres-credentials
+  # key: SEC_USER_AGENT, "<name> <email>" (required by the SEC for EDGAR feeds)
+  secUserAgent: poller-config
+  # key: HF_READ_TOKEN, only needed when laya.model is a private Hugging Face repository. Leave empty otherwise.
+  hfToken: hf-read-token
+
+image:
+  pullPolicy: IfNotPresent
+  pullSecrets: []        # e.g. [{name: my-registry}] for a private registry
+
+# Image repositories and tags. Until the release workflow publishes to a registry (see the issue tracker), these point
+# at images built locally and imported into the node (scripts/build.sh, scripts/ship.sh). Tags are explicit: never `latest`.
+postgres:
+  image: postgres:16-alpine
+  storage: 5Gi
+  storageClass: local-path
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 1Gi}
+
+poller:
+  image: {repository: tickertape/poller, tag: "0.1.0"}
+  schedule: "*/5 * * * *"
+  activeDeadlineSeconds: 240
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 256Mi}
+
+ner:
+  image: {repository: tickertape/ner, tag: "0.1.0"}
+  # Model cache volume (ReadWriteOnce, so the Deployment uses the Recreate strategy)
+  cache: {size: 5Gi, storageClass: local-path}
+  # The UI gets its own NodePort Service so it opens at http://<node>:<nodePort> without a tunnel. No authentication:
+  # keep it on a private network.
+  ui: {type: NodePort, nodePort: 30002}
+  resources:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {memory: 2Gi}
+
+laya:
+  image: {repository: tickertape/laya, tag: "0.1.1"}
+  # Model and optional commit pin. Public base model: convaiinnovations/laya with no revision.
+  model: avinoamn/tickertape-laya
+  revision: b02c4f5ce4fe47515d697cb0e6d5f100c5c413b8
+  # Must match the CPU limit, or torch starts one thread per core and gets throttled
+  threads: 2
+  cache: {size: 5Gi, storageClass: local-path}
+  ui: {type: NodePort, nodePort: 30003}
+  resources:
+    requests: {cpu: "1", memory: 2Gi}
+    limits: {cpu: "2", memory: 3.5Gi}
+
+# Traefik (or any) Ingress for the two UIs. The NodePort Services above work without it.
+ingress:
+  enabled: true
+  className: ""          # empty = the cluster's default class
+  ner: {host: ner.local}
+  laya: {host: laya.local}
+
+# Prometheus Operator ServiceMonitors for ner and laya (/metrics). Only rendered when the CRDs exist in the cluster.
+serviceMonitors:
+  enabled: true
+  interval: 30s

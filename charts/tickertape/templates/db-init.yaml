@@ -1,0 +1,50 @@
+# The schema is idempotent (CREATE ... IF NOT EXISTS), so it is applied after every install and upgrade by a hook Job.
+# Hooks run once the release's resources are ready (Postgres included when --wait/--atomic is used).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-schema
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+data:
+  schema.sql: |
+    {{- .Files.Get "files/schema.sql" | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      {{- include "tickertape.pullSecrets" . | nindent 6 }}
+      restartPolicy: OnFailure
+      containers:
+        - name: psql
+          image: {{ .Values.postgres.image }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres -U "$PGUSER" -d "$PGDATABASE"; do sleep 2; done
+              psql -v ON_ERROR_STOP=1 -h postgres -f /schema/schema.sql
+          env:
+            - name: PGUSER
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.postgres }}, key: POSTGRES_USER}}
+            - name: PGPASSWORD
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.postgres }}, key: POSTGRES_PASSWORD}}
+            - name: PGDATABASE
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.postgres }}, key: POSTGRES_DB}}
+          volumeMounts:
+            - {name: schema, mountPath: /schema}
+      volumes:
+        - name: schema
+          configMap: {name: db-schema}
