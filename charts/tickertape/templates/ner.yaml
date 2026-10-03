@@ -30,7 +30,7 @@ spec:
       {{- include "tickertape.pullSecrets" . | nindent 6 }}
       containers:
         - name: ner
-          image: {{ include "tickertape.image" (dict "image" .Values.ner.image "root" .) }}
+          image: {{ include "tickertape.image" (dict "name" "ner" "image" .Values.ner.image) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - {name: ui, containerPort: 7860}

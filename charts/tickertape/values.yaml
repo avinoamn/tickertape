@@ -15,8 +15,10 @@ image:
   pullPolicy: IfNotPresent
   pullSecrets: []        # e.g. [{name: my-registry}] for a private registry
 
-# Image repositories and tags. Until the release workflow publishes to a registry (see the issue tracker), these point
-# at images built locally and imported into the node (scripts/build.sh, scripts/ship.sh). Tags are explicit: never `latest`.
+# Image repositories and tags. Each service has its own version (services/<svc>/VERSION) and this chart pins one tag
+# per service: deploying a chart version deploys exactly that set, and bumping one service restarts only that service.
+# Tags are required and explicit: never `latest`. Until the first releases are published (see the issue tracker) these
+# point at images built locally and imported into the node (scripts/build.sh, scripts/ship.sh).
 postgres:
   image: postgres:16-alpine
   storage: 5Gi

@@ -75,7 +75,7 @@ More in [docs/development.md](docs/development.md).
 
 The `tickertape` namespace is one Helm chart, `charts/tickertape` (Postgres StatefulSet, schema Job, poller CronJob, ner and laya Deployments with their services, ingress and ServiceMonitors). Settings are in its `values.yaml`; Secrets are created separately and referenced by name. Monitoring is a second Helm release (`k8s/monitoring/values.yaml`, kube-prometheus-stack). Step-by-step instructions, including the one-time cluster bootstrap, secrets, rollout and rollback, are in [docs/operations.md](docs/operations.md).
 
-A release is a `vX.Y.Z` git tag: the [release workflow](docs/releasing.md) builds the three images, publishes them to GHCR and attaches the packaged chart to a GitHub Release. Until the first release is published, images are still built locally and imported into k3s, then `make deploy` (a `helm upgrade --install --atomic`). A workflow to start deployments from GitHub over Tailscale is the next planned piece; see the open issues.
+Each service (`poller`, `ner`, `laya`) and the Helm chart has its own SemVer version and is released by a git tag such as `ner-v0.2.0` or `chart-v0.3.0`: the [release workflow](docs/releasing.md) publishes the image to GHCR or packages the chart, and creates a GitHub Release. A deployment is a chart version, which pins one image tag per service. Until the first releases are published, images are still built locally and imported into k3s, then `make deploy` (a `helm upgrade --install --atomic`). A workflow to start deployments from GitHub over Tailscale is the next planned piece; see the open issues.
 
 ## Repository layout
 

@@ -20,7 +20,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: poller
-              image: {{ include "tickertape.image" (dict "image" .Values.poller.image "root" .) }}
+              image: {{ include "tickertape.image" (dict "name" "poller" "image" .Values.poller.image) }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               env:
                 - name: DATABASE_URL
