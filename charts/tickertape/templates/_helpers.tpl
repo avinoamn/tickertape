@@ -3,14 +3,15 @@
 {{- define "tickertape.labels" -}}
 app.kubernetes.io/name: tickertape
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/version: {{ .Chart.Version | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- end }}
 
-{{/* usage: include "tickertape.image" (dict "image" .Values.ner.image "root" .) ; the tag defaults to the chart's appVersion */}}
+{{/* usage: include "tickertape.image" (dict "name" "ner" "image" .Values.ner.image). The tag is required: no implicit
+     version, never `latest`. */}}
 {{- define "tickertape.image" -}}
-{{ .image.repository }}:{{ .image.tag | default .root.Chart.AppVersion }}
+{{ .image.repository }}:{{ required (printf "%s.image.tag is required" .name) .image.tag }}
 {{- end }}
 
 {{- define "tickertape.pullSecrets" -}}

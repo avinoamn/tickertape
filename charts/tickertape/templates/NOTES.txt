@@ -1,4 +1,4 @@
-tickertape {{ .Chart.AppVersion }} installed in namespace {{ .Release.Namespace }} (release {{ .Release.Name }}).
+tickertape chart {{ .Chart.Version }} installed in namespace {{ .Release.Namespace }} (release {{ .Release.Name }}).
 
 The model services load their models on first start (several minutes: ner ~1 GB, laya ~0.8 GB).
 

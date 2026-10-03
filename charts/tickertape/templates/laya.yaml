@@ -30,7 +30,7 @@ spec:
       {{- include "tickertape.pullSecrets" . | nindent 6 }}
       containers:
         - name: laya
-          image: {{ include "tickertape.image" (dict "image" .Values.laya.image "root" .) }}
+          image: {{ include "tickertape.image" (dict "name" "laya" "image" .Values.laya.image) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - {name: ui, containerPort: 7860}

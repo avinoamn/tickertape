@@ -1,12 +1,12 @@
 # Thin wrappers over scripts/*.sh. Works from Git Bash, PowerShell or cmd.
-# TAG must match the image tag in charts/tickertape/values.yaml.
+# TAG defaults to the version in services/<svc>/VERSION.
 ifeq ($(OS),Windows_NT)
 # Outside Git Bash, bash may be missing from PATH (or be the WSL launcher). Use Git's bash.
 export PATH := C:/Program Files/Git/bin;$(PATH)
 endif
 SHELL := bash
 SVC   ?= poller
-TAG   ?= 0.1.0
+TAG   ?=
 
 # port-forward target: kubectl service in namespace tickertape -> localhost
 PF_SVC  ?= postgres
@@ -16,8 +16,8 @@ PF_PORT ?= 5432
 
 help:
 	@echo "make bootstrap                      one-time admin step: namespace + deployer RBAC + ~/.kube/tickertape (CHANGES CLUSTER STATE)"
-	@echo "make build [SVC=poller TAG=0.1.0]   build image locally"
-	@echo "make push  [SVC=poller TAG=0.1.0]   copy image to computa + import into k3s (asks for sudo password)"
+	@echo "make build [SVC=poller TAG=...]    build tickertape/<svc>:<TAG> locally (TAG defaults to services/<svc>/VERSION)"
+	@echo "make push  [SVC=poller TAG=...]    copy image to computa + import into k3s (asks for sudo password)"
 	@echo "make deploy [HELM_ARGS=...]        helm upgrade --install the chart on computa (CHANGES CLUSTER STATE; SEC_USER_AGENT for the first run)"
 	@echo "make port-forward [PF_SVC=postgres PF_PORT=5432]   tunnel a cluster service to localhost"
 	@echo "make dev-up | dev-down | dev-poll   local Docker Postgres / run poller against it"
