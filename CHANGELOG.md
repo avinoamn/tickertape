@@ -4,6 +4,14 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## chart 0.3.0 - 2026-10-04
+
+### Added
+
+- Backups of the database, on by default (`backup.enabled`): a daily CronJob `postgres-backup` writes a `pg_dump` to its own volume `postgres-backups` (checked to be readable and to hold every table before it replaces anything; the newest 14 are kept; the volume survives `helm uninstall`), and a weekly CronJob `postgres-restore-test` restores the newest dump into a scratch database, checks that the tables have data, and fails if the restore fails or the newest dump is older than 36 hours.
+- New values under `backup:` (schedule, time zone, retention, volume size, restore-test schedule and age limit, resources).
+- Upgrading from 0.2.0 only adds the two CronJobs, a ConfigMap with the scripts and a 1 Gi volume claim: no spec of an existing object changes (only the chart version label) and no pod restarts. The dumps are on the same node as the database, so copy them off the node regularly (`make backup-pull`, see docs/operations.md).
+
 ## chart 0.2.0 - 2026-10-04
 
 ### Added
