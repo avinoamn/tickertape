@@ -94,6 +94,8 @@ Create Secrets before upgrading a release that references them: ner and laya use
 
 ## Releasing a new version of a service
 
+Published releases (images on GHCR) are described in [releasing.md](releasing.md). Until the first one is published, or to try unreleased code, use the local flow:
+
 1. Change the code, build with a **new** tag (`make build SVC=laya TAG=0.1.2`) and import it (`make push SVC=laya TAG=0.1.2`).
 2. Set the tag in `charts/tickertape/values.yaml` (`laya.image.tag`; tags are explicit and never `latest`, and `imagePullPolicy` is `IfNotPresent`, so an existing tag would not be re-pulled), or pass it once with `make deploy HELM_ARGS="--set laya.image.tag=0.1.2"`.
 3. `make deploy` and watch `scripts/kc.sh rollout status deployment/laya -n tickertape`.

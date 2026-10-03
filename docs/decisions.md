@@ -86,6 +86,18 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **Deploys use `helm upgrade --install --atomic` as the namespace-scoped deployer account.** Helm stores its release state in Secrets inside the namespace, which that account may already manage, so no extra permissions were needed. Rollback is `helm rollback`.
 
+## Releases
+
+**Images go to GHCR, public, tagged with the version only.** The GitHub token publishes without any extra credential, and public images mean a cluster pulls without a Secret. There is no `latest` and tags are never moved, so what runs is always reproducible.
+
+**A release is a tag on main, and the workflow refuses anything else.** Before pushing, it checks that the tag is SemVer, that the chart's `version` and `appVersion` and the changelog agree with it, that the commit is on `main`, and that CI passed for that exact commit. A tag on a branch or on a red commit cannot publish.
+
+**The chart's default image tag is its `appVersion`.** Deploying the chart at a tag therefore deploys that tag's images, with no tag to remember to pass. The cost is a small release PR that bumps `Chart.yaml` and the changelog before tagging.
+
+**The release is gated on an anonymous pull.** GHCR packages start out private. The workflow fails with the exact click path instead of publishing a release that no cluster can pull.
+
+**`linux/amd64` only.** That is the only architecture in use; adding arm64 would double build time for the ML images.
+
 ## Release engineering (in progress)
 
-Planned and tracked in the issues: a public container registry (GHCR) instead of importing images by hand, SemVer with one version for the whole repository, GitHub Actions for CI and release, and deploys started manually from GitHub over Tailscale. The reasoning will be recorded here as each piece ships.
+Still planned (see the issues): deploys started manually from GitHub over Tailscale. The reasoning will be recorded here when it ships.
