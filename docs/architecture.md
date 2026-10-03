@@ -110,10 +110,11 @@ Everything below is one Helm chart (`charts/tickertape`, see [operations.md](ope
 - ner and laya: one replica each, strategy `Recreate` (they each own a ReadWriteOnce volume that caches the Hugging Face models, so two pods must never run at once). Memory limits 2 Gi (ner) and 3.5 Gi (laya); laya is also limited to 2 CPU cores with `OMP_NUM_THREADS=MKL_NUM_THREADS=2`, because uncapped it starved the rest of a 4-core node. Readiness probes use `/metrics`, which only starts after the model has loaded.
 - Services: a ClusterIP Service per workload carries the ports (UI 7860, metrics 8000); every UI also gets its own NodePort Service so it opens from any device on the private network (ner 30002, laya 30003, Grafana 30004). Traefik Ingresses (`ner.local`, `laya.local`, `grafana.local`) are an extra.
 - Deploy identity: a namespace-scoped `deployer` ServiceAccount (`k8s/rbac.yaml`) that can manage workloads in `tickertape` and nothing else.
+- Backups: a daily `pg_dump` CronJob into its own volume (newest 14 kept) and a weekly CronJob that restores the newest dump into a scratch database, fails if backups are stale, and proves the restore works.
 - Monitoring: kube-prometheus-stack in `monitoring`, trimmed to what the dashboards use so 365 days of history fit in a small volume; ServiceMonitors for ner and laya; Grafana reads Postgres through a read-only role.
 
 ## Known limits
 
-- One node, one replica per stage, no high availability, no backups yet (tracked in the issues). Postgres is the only irreplaceable data.
+- One node, one replica per stage, no high availability. Postgres is the only irreplaceable data: a daily dump and a weekly restore test run in the cluster, but they live on the same node, so a copy has to be pulled off it (see [operations.md](operations.md#backups)).
 - The UIs have no authentication. Run them on a private network only.
 - CPU-only inference: about 0.7 s per item for ner and 17 s per item for laya on the 4-core Celeron node, so laya can process roughly 200 items per hour, enough for these feeds but a bottleneck in a news burst (the backlog panel shows it).

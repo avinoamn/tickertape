@@ -48,6 +48,7 @@ docker compose exec db psql -U tickertape -c "select status, count(*) from items
 make lint                       # ruff, in a python:3.12 container
 make test                       # pytest, in a python:3.12 container, against the dev database (make dev-up)
 make chart-check                # helm lint + render + kubeconform, in containers
+make backup-test                # the backup / restore-test scripts end to end, against a throw-away Postgres (Docker only)
 make dashboards                 # regenerate grafana/dashboards/*.json
 docker compose --profile monitoring up -d
 make verify-dashboards          # runs every panel query against the local Grafana and reports errors / empty panels

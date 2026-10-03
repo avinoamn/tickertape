@@ -12,7 +12,7 @@ TAG   ?=
 PF_SVC  ?= postgres
 PF_PORT ?= 5432
 
-.PHONY: lint test chart-check dashboards verify-dashboards monitoring-secrets monitoring-install eval-ner backfill dataset eval-laya help bootstrap build deploy port-forward dev-up dev-down dev-poll status logs
+.PHONY: lint test chart-check backup-test backup-pull dashboards verify-dashboards monitoring-secrets monitoring-install eval-ner backfill dataset eval-laya help bootstrap build deploy port-forward dev-up dev-down dev-poll status logs
 
 help:
 	@echo "make bootstrap                      one-time admin step: namespace + deployer RBAC + ~/.kube/tickertape (CHANGES CLUSTER STATE)"
@@ -24,6 +24,8 @@ help:
 	@echo "make backfill ARGS=\"cnbc|sec ...\"   step 5: add historical items to the DEV DB (training/backfill.py)"
 	@echo "make dataset ARGS=\"select|status|batch|add|export\"   step 5: build the Laya training/gold dataset (training/build_dataset.py)"
 	@echo "make eval-laya ARGS=\"predict --name base --model ...\"   step 5: cache a checkpoint's answers on the gold set (training/eval_laya.py); report: python training/eval_laya.py report base ft"
+	@echo "make backup-test              test the backup and restore-test scripts end to end against a throw-away Postgres (Docker only)"
+	@echo "make backup-pull              copy a fresh, verified dump of the cluster database to this machine (read-only on the cluster)"
 	@echo "make chart-check              helm lint + template (several value sets) + kubeconform, in containers"
 	@echo "make lint | test               ruff and pytest in a python:3.12 container (test uses the dev DB from make dev-up in a throw-away schema)"
 	@echo "make dashboards                      regenerate grafana/dashboards/*.json from grafana/gen_dashboards.py"
@@ -102,5 +104,10 @@ HELM_IMG ?= alpine/helm:3.21.2
 KUBECONFORM_IMG ?= ghcr.io/yannh/kubeconform:v0.8.0
 chart-check:
 	MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR):/work" -w /work $(HELM_IMG) lint charts/tickertape
-	for sets in "" "--set ingress.enabled=false --set serviceMonitors.enabled=false" "--set secrets.hfToken= --set laya.revision= --set laya.model=convaiinnovations/laya --set ner.ui.type=ClusterIP --set laya.ui.type=ClusterIP" ; do 	  MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR):/work" -w /work $(HELM_IMG) template tickertape charts/tickertape -n tickertape --api-versions monitoring.coreos.com/v1 $$sets 	    | docker run --rm -i $(KUBECONFORM_IMG) -strict -ignore-missing-schemas -summary - || exit 1; 	done
+	for sets in "" "--set ingress.enabled=false --set serviceMonitors.enabled=false --set backup.enabled=false" "--set secrets.hfToken= --set laya.revision= --set laya.model=convaiinnovations/laya --set ner.ui.type=ClusterIP --set laya.ui.type=ClusterIP" ; do 	  MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR):/work" -w /work $(HELM_IMG) template tickertape charts/tickertape -n tickertape --api-versions monitoring.coreos.com/v1 $$sets 	    | docker run --rm -i $(KUBECONFORM_IMG) -strict -ignore-missing-schemas -summary - || exit 1; 	done
 
+backup-test:
+	scripts/test-backup.sh
+
+backup-pull:
+	scripts/backup-pull.sh

@@ -145,11 +145,58 @@ scripts/kc.sh exec -n tickertape postgres-0 -- psql -U tickertape -Atc "select m
 
 ## Backups
 
-There are none yet, and Postgres is the only irreplaceable data. The volumes use the `local-path` storage class with reclaim policy `Delete`, so deleting the PVC or the namespace deletes the data. Until a backup job exists (tracked in the issues), take a dump by hand before risky changes:
+Postgres is the only irreplaceable data (items and answers). Everything else is rebuilt from the repository, the Secrets (recreated by the scripts) or the Hugging Face model. The volumes use the `local-path` storage class with reclaim policy `Delete`, so deleting the claim or the namespace deletes the data: that is what the backups are for.
+
+### What runs
+
+The chart (`backup.enabled`, on by default) creates:
+
+| Object | When | What it does |
+|---|---|---|
+| CronJob `postgres-backup` | daily at 03:00 (`backup.schedule`) | `pg_dump -Fc` into the volume `postgres-backups`. The archive is checked to be readable and to hold the data of every table before it replaces anything, and only the newest 14 (`backup.keep`) are kept. |
+| CronJob `postgres-restore-test` | Sundays at 04:30 (`backup.restoreTest.schedule`) | Restores the newest dump into a scratch database on the same server, checks that the tables have data, drops the scratch database, and **fails if the newest dump is older than 36 hours** (`backup.restoreTest.maxAgeHours`), which means backups have stopped. |
+
+A failing job shows in `scripts/kc.sh get jobs -n tickertape` and in the kube-state-metrics job-health data that the Poller dashboard already uses; alert rules for it are tracked in the issues. Look at them, and run either one right now instead of waiting for the schedule:
 
 ```sh
-scripts/kc.sh exec -n tickertape postgres-0 -- pg_dump -U tickertape -Fc tickertape > tickertape-$(date +%F).dump
+scripts/kc.sh get cronjob postgres-backup postgres-restore-test -n tickertape
+scripts/kc.sh create job backup-now-$(date +%s) --from=cronjob/postgres-backup -n tickertape
+scripts/kc.sh create job restore-test-now-$(date +%s) --from=cronjob/postgres-restore-test -n tickertape
+scripts/kc.sh logs -n tickertape -l job-name=backup-now-<timestamp>      # one JSON line: file, bytes, how many are kept
 ```
+
+The scripts (`charts/tickertape/files/backup.sh` and `restore-test.sh`) are tested end to end by `make backup-test` (also in CI) against a throw-away Postgres: a good backup, retention, a missing, stale and corrupt backup (the restore test must fail), cleanup of the scratch database, and the disaster-recovery command below.
+
+### Copy a dump off the node
+
+The in-cluster dumps are on the same disk as the database, so they do not survive losing the node. Pull a copy to your machine regularly, and before anything risky (a major Postgres upgrade, changing the volume):
+
+```sh
+make backup-pull          # saves ~/tickertape-backups/tickertape-<timestamp>.dump, verified readable; read-only on the cluster
+```
+
+Sync that folder wherever you keep backups. The dumps contain third-party news text: keep them private.
+
+### Restoring
+
+Always rehearse against a scratch database first (the weekly job does this). To bring a dump back into the **live** database after data loss:
+
+1. Stop the writers so nothing is inserted while you restore: suspend the poller and stop ner and laya.
+   ```sh
+   scripts/kc.sh patch cronjob/poller -n tickertape -p '{"spec":{"suspend":true}}'
+   scripts/kc.sh patch deployment/ner  -n tickertape --type=merge -p '{"spec":{"replicas":0}}'
+   scripts/kc.sh patch deployment/laya -n tickertape --type=merge -p '{"spec":{"replicas":0}}'
+   ```
+2. Restore. From a dump on your machine (after `make backup-pull`):
+   ```sh
+   scripts/kc.sh exec -i -n tickertape postgres-0 -- pg_restore --clean --if-exists --no-owner -U tickertape -d tickertape < ~/tickertape-backups/<dump>
+   ```
+   From the in-cluster volume, run the same `pg_restore` in a throw-away pod that mounts the claim `postgres-backups`.
+3. Check the counts (`select status, count(*) from items group by 1`), then start everything again: `"suspend":false` for the poller, and `make deploy` (it resets ner and laya to one replica, as in the chart).
+
+`--clean --if-exists` drops and recreates the tables before loading, so the result is exactly the dump: rows added after it are gone. If the whole database is gone (volume deleted), let the chart create an empty Postgres first (`make deploy`), then restore the same way.
+
+What is not in the dumps: the Secrets (recreate them with the scripts in "Secrets" above; the restore does not depend on the old Postgres password), and the monitoring stack's history (Prometheus data is disposable).
 
 ## Network exposure
 
