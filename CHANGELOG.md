@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/) and the project will use [Semantic Versioning](https://semver.org/) with one version for the whole repository once releases start (first planned release: `0.2.0`).
+All notable changes are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/). The components (`poller`, `ner`, `laya` and the Helm `chart`) are versioned independently with [Semantic Versioning](https://semver.org/), so released entries are grouped per component under `## <component> <version> - <date>` (see [docs/releasing.md](docs/releasing.md)). Repository-only changes (CI, docs, tests) are in the git history.
 
 ## [Unreleased]
 
@@ -16,7 +16,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 - Helm chart `charts/tickertape` replacing the plain manifests for the `tickertape` namespace (rendered output verified identical to the previous manifests, so adopting the live install restarts nothing), `scripts/helm.sh`, a Helm-based `scripts/deploy.sh`, and `make chart-check` (also run in CI). The schema file moved to `charts/tickertape/files/schema.sql`.
 
-- Release workflow (`.github/workflows/release.yml`): a `vX.Y.Z` tag builds and publishes the three images to GHCR, packages the chart and creates a GitHub Release from the changelog, after checking the tag, the chart version, the changelog and the CI result. `docs/releasing.md` describes versioning and the release procedure.
+- Release workflow (`.github/workflows/release.yml`) with independent versions: `poller-vX.Y.Z`, `ner-vX.Y.Z` and `laya-vX.Y.Z` tags publish one image to GHCR, `chart-vX.Y.Z` packages the chart (after checking that the images it pins exist) and each creates a GitHub Release from the changelog. Per-service `VERSION` files; the chart pins an explicit image tag per service and no longer has an `appVersion`. `docs/releasing.md` describes versioning and the release procedure.
 
 ### Fixed
 

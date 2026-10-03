@@ -88,15 +88,21 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 ## Releases
 
-**Images go to GHCR, public, tagged with the version only.** The GitHub token publishes without any extra credential, and public images mean a cluster pulls without a Secret. There is no `latest` and tags are never moved, so what runs is always reproducible.
+**poller, ner, laya and the chart are versioned independently.** The services change at very different rates (the model services almost never, the poller whenever a feed misbehaves), and a changed image tag restarts a pod: ner and laya reload their model on every start, so with one shared version a poller fix would pause the model stages for a minute. Independent versions also say what actually changed. The price is more bookkeeping, handled with conventions (below) and checks in CI and in the release workflow.
 
-**A release is a tag on main, and the workflow refuses anything else.** Before pushing, it checks that the tag is SemVer, that the chart's `version` and `appVersion` and the changelog agree with it, that the commit is on `main`, and that CI passed for that exact commit. A tag on a branch or on a red commit cannot publish.
+**A deployment is a chart version, and the chart pins one explicit tag per service.** There is no implicit "latest" or "current" version: the chart requires a tag for each service, so a chart version names an exact, reproducible set of images, and rolling back is deploying the previous chart. A service release alone changes nothing on the cluster until a chart release pins it.
 
-**The chart's default image tag is its `appVersion`.** Deploying the chart at a tag therefore deploys that tag's images, with no tag to remember to pass. The cost is a small release PR that bumps `Chart.yaml` and the changelog before tagging.
+**Each service's version lives in a `VERSION` file next to its code.** Local builds default to it, the release workflow checks the tag against it, and a test checks it is valid SemVer. A tag is a claim about the tree, so the tree must agree before anything is published.
 
-**The release is gated on an anonymous pull.** GHCR packages start out private. The workflow fails with the exact click path instead of publishing a release that no cluster can pull.
+**Tags are `<component>-vX.Y.Z`; images carry only the version tag, are never moved, and `latest` does not exist.** What runs is always reproducible.
 
-**`linux/amd64` only.** That is the only architecture in use; adding arm64 would double build time for the ML images.
+**A release is a tag on main, and the workflow refuses anything else.** Before pushing it checks the tag format, the version in the tree, the changelog section, that the commit is on `main`, and that CI passed for that exact commit.
+
+**A chart release is refused unless every image it pins exists and is public.** This enforces the order (release the services, then the chart) and keeps a deploy from failing on an image pull.
+
+**GHCR images are public.** The GitHub token publishes without extra credentials, and a cluster pulls without a Secret. A new package starts out private, so the workflow fails with the exact click path instead of publishing something no cluster can pull.
+
+**`linux/amd64` only.** That is the only architecture in use; adding arm64 would double the build time of the ML images.
 
 ## Release engineering (in progress)
 

@@ -43,8 +43,8 @@ make chart-check
 1. **Bootstrap access** (admin step, once): `make bootstrap` creates the namespace, the RBAC and `~/.kube/tickertape`.
 2. **Make the images available to the node.** There is no registry yet, so images are built locally and imported into k3s:
    ```sh
-   make build SVC=poller TAG=0.1.0        # likewise ner and laya; TAG must match the tag in charts/tickertape/values.yaml
-   make push  SVC=poller TAG=0.1.0        # docker save, scp, `sudo k3s ctr images import` on the node
+   make build SVC=poller                  # likewise ner and laya; tags tickertape/poller:<contents of services/poller/VERSION>
+   make push  SVC=poller                  # docker save, scp, `sudo k3s ctr images import` on the node
    ```
    `make push` asks for the node's sudo password, so run it in a real terminal.
 3. **Deploy:** `SEC_USER_AGENT="Your Name you@example.com" make deploy`. It creates the Secrets (below) and runs `helm upgrade --install tickertape charts/tickertape --atomic` as the `deployer` ServiceAccount (`scripts/helm.sh`). `--atomic` waits until everything is ready and rolls back if the release fails. The first start of ner and laya downloads their models into a volume (allow several minutes). Extra Helm arguments go in `HELM_ARGS`, for example `make deploy HELM_ARGS="--set laya.image.tag=0.1.2"`.
@@ -94,10 +94,10 @@ Create Secrets before upgrading a release that references them: ner and laya use
 
 ## Releasing a new version of a service
 
-Published releases (images on GHCR) are described in [releasing.md](releasing.md). Until the first one is published, or to try unreleased code, use the local flow:
+Published releases (images on GHCR, one version per service, pinned by the chart) are described in [releasing.md](releasing.md). Until the first ones are published, or to try unreleased code, use the local flow, which deploys a locally built image by pointing the chart at it:
 
-1. Change the code, build with a **new** tag (`make build SVC=laya TAG=0.1.2`) and import it (`make push SVC=laya TAG=0.1.2`).
-2. Set the tag in `charts/tickertape/values.yaml` (`laya.image.tag`; tags are explicit and never `latest`, and `imagePullPolicy` is `IfNotPresent`, so an existing tag would not be re-pulled), or pass it once with `make deploy HELM_ARGS="--set laya.image.tag=0.1.2"`.
+1. Change the code, build with a **new** tag (`make build SVC=laya TAG=0.1.2-dev`) and import it (`make push SVC=laya TAG=0.1.2-dev`). Tags are explicit and never `latest`, and `imagePullPolicy` is `IfNotPresent`, so an existing tag would not be re-pulled.
+2. Point the chart at the local image for this one deploy (or edit `values.yaml`): `make deploy HELM_ARGS="--set laya.image.repository=tickertape/laya --set laya.image.tag=0.1.2-dev"`. Only that service restarts.
 3. `make deploy` and watch `scripts/kc.sh rollout status deployment/laya -n tickertape`.
 
 ner and laya reload their model on every start (about a minute), during which that stage pauses; items wait in Postgres and nothing is lost. To undo a bad release: `scripts/helm.sh rollback tickertape` (to the previous revision) or `scripts/helm.sh history tickertape` and `rollback tickertape <revision>`.
