@@ -12,12 +12,11 @@ TAG   ?=
 PF_SVC  ?= postgres
 PF_PORT ?= 5432
 
-.PHONY: lint test chart-check dashboards verify-dashboards monitoring-secrets monitoring-install eval-ner backfill dataset eval-laya help bootstrap build push deploy port-forward dev-up dev-down dev-poll status logs
+.PHONY: lint test chart-check dashboards verify-dashboards monitoring-secrets monitoring-install eval-ner backfill dataset eval-laya help bootstrap build deploy port-forward dev-up dev-down dev-poll status logs
 
 help:
 	@echo "make bootstrap                      one-time admin step: namespace + deployer RBAC + ~/.kube/tickertape (CHANGES CLUSTER STATE)"
 	@echo "make build [SVC=poller TAG=...]    build tickertape/<svc>:<TAG> locally (TAG defaults to services/<svc>/VERSION)"
-	@echo "make push  [SVC=poller TAG=...]    copy image to computa + import into k3s (asks for sudo password)"
 	@echo "make deploy [HELM_ARGS=...]        helm upgrade --install the chart on computa (CHANGES CLUSTER STATE; SEC_USER_AGENT for the first run)"
 	@echo "make port-forward [PF_SVC=postgres PF_PORT=5432]   tunnel a cluster service to localhost"
 	@echo "make dev-up | dev-down | dev-poll   local Docker Postgres / run poller against it"
@@ -38,9 +37,6 @@ bootstrap:
 
 build:
 	scripts/build.sh $(SVC) $(TAG)
-
-push:
-	scripts/ship.sh $(SVC) $(TAG)
 
 deploy:
 	scripts/deploy.sh $(HELM_ARGS)

@@ -52,7 +52,7 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **Every UI gets its own NodePort Service, separate from the ClusterIP Service that carries metrics.** The UIs must open from any device on the private network without a tunnel or per-device setup. They have no authentication, so they stay on a private network.
 
-**Images use explicit version tags and `imagePullPolicy: IfNotPresent`.** Mutable tags and `latest` make a rollout depend on what the node cached. Until a registry exists, images are built locally and imported into k3s.
+**Images use explicit version tags and `imagePullPolicy: IfNotPresent`.** Mutable tags and `latest` make a rollout depend on what the node cached. Images come from the registry only (see Releases); the early flow of building locally and importing into k3s by hand (`docker save`, `scp`, `sudo k3s ctr images import`) was retired once the release workflow had published and deployed the first versions, because it needed a sudo password and a terminal, and produced images nobody else could reproduce.
 
 **laya has a CPU limit of 2 cores and matching thread counts.** Uncapped it took 3.5 of the node's 4 cores and starved everything else. Torch threads must match the limit or they are throttled.
 
@@ -103,6 +103,8 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 **GHCR images are public.** The GitHub token publishes without extra credentials, and a cluster pulls without a Secret. A new package starts out private, so the workflow fails with the exact click path instead of publishing something no cluster can pull.
 
 **`linux/amd64` only.** That is the only architecture in use; adding arm64 would double the build time of the ML images.
+
+**Release tags are protected by a ruleset with no bypass.** A published version must never change, and the realistic way to break that is a careless force push or tag deletion by the one person with access. Blocking deletion and updates for the four tag patterns makes that impossible by accident. The price is that recovering from a release that failed before publishing means disabling the ruleset for a minute, which is deliberate friction. The protection was tested on a throwaway tag (a delete and a move were both rejected) before it was trusted.
 
 ## Release engineering (in progress)
 

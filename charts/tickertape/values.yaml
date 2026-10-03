@@ -17,9 +17,9 @@ image:
 
 # Image repositories and tags. Each service has its own version (services/<svc>/VERSION) and this chart pins one tag
 # per service: deploying a chart version deploys exactly that set, and bumping one service restarts only that service.
-# Tags are required and explicit: never `latest`. The images are public on GHCR (docs/releasing.md). To run a locally
-# built image instead, override both values for that service, e.g.
-#   --set ner.image.repository=tickertape/ner --set ner.image.tag=0.1.2-dev
+# Tags are required and explicit: never `latest`. The images are public on GHCR (docs/releasing.md). To try another image
+# the node can pull, override both values for that service, e.g.
+#   --set ner.image.repository=ghcr.io/<owner>/tickertape-ner --set ner.image.tag=0.2.0-rc.1
 postgres:
   image: postgres:16-alpine
   storage: 5Gi
