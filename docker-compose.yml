@@ -1,0 +1,98 @@
+# Local dev only. Cluster deploy uses k8s/. Dev credentials below are not secrets.
+#   docker compose up -d db
+#   docker compose run --rm --build poller
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tickertape
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: tickertape
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro  # applied on first start only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tickertape"]
+      interval: 3s
+      retries: 20
+
+  poller:
+    build:
+      context: .
+      dockerfile: services/poller/Dockerfile
+    profiles: ["run"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tickertape:dev@db:5432/tickertape
+      SEC_USER_AGENT: ${SEC_USER_AGENT:-}  # "<name> <email>"; the poller exits with an error if a sec feed is enabled without it
+
+  # Long-running: docker compose up -d --build ner   (UI http://localhost:7860, metrics http://localhost:8000/metrics)
+  ner:
+    build:
+      context: .
+      dockerfile: services/ner/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tickertape:dev@db:5432/tickertape
+      SEC_USER_AGENT: ${SEC_USER_AGENT:-}  # optional: without it the baked-in SEC ticker snapshot is used
+    ports:
+      - "127.0.0.1:7860:7860"
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - hfcache:/root/.cache/huggingface  # model downloads once
+
+  # Long-running: docker compose up -d --build laya   (UI http://localhost:7861, metrics http://localhost:8001/metrics)
+  # Processes the dev DB's ner_done rows. Stop it with: docker compose stop laya
+  laya:
+    build:
+      context: .
+      dockerfile: services/laya/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tickertape:dev@db:5432/tickertape
+      LAYA_MODEL: ${LAYA_MODEL:-convaiinnovations/laya}
+    ports:
+      - "127.0.0.1:7861:7860"
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - hfcache-laya:/root/.cache/huggingface
+
+  # Local test rig for step 4 (not used in the cluster): docker compose --profile monitoring up -d
+  # Grafana http://localhost:3000 (anonymous admin), Prometheus http://localhost:9090. Panels that need
+  # kube-state-metrics / cAdvisor (poller job health, laya memory/CPU) stay empty here; check those on the cluster.
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    profiles: ["monitoring"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=1d"]
+    volumes:
+      - ./grafana/dev/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    profiles: ["monitoring"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./grafana/dev/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  pgdata:
+  hfcache:
+  hfcache-laya:

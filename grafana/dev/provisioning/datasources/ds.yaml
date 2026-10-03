@@ -1,0 +1,13 @@
+# Same uids as k8s/monitoring/values.yaml, so the dashboard JSON works unchanged. Dev credentials, not secrets.
+apiVersion: 1
+datasources:
+  - {name: Prometheus, uid: prometheus, type: prometheus, access: proxy, url: "http://prometheus:9090", isDefault: true}
+  - name: tickertape-pg
+    uid: tickertape-pg
+    type: postgres
+    access: proxy
+    url: db:5432
+    user: tickertape
+    database: tickertape
+    jsonData: {database: tickertape, sslmode: disable, postgresVersion: 1600, timescaledb: false}
+    secureJsonData: {password: dev}

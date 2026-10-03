@@ -1,0 +1,30 @@
+# Image is imported into k3s by scripts/ship.sh (no registry), hence IfNotPresent. Bump the tag on each release.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: poller
+  namespace: tickertape
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 240
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: poller
+              image: tickertape/poller:0.1.0
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: DATABASE_URL
+                  valueFrom: {secretKeyRef: {name: postgres-credentials, key: DATABASE_URL}}
+                - name: SEC_USER_AGENT
+                  valueFrom: {secretKeyRef: {name: poller-config, key: SEC_USER_AGENT}}
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 256Mi}

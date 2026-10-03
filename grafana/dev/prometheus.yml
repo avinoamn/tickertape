@@ -1,0 +1,8 @@
+# Local test rig only (docker compose --profile monitoring). In the cluster, ServiceMonitors do this job.
+global:
+  scrape_interval: 5s
+scrape_configs:
+  - job_name: ner
+    static_configs: [{targets: ["ner:8000"]}]
+  - job_name: laya
+    static_configs: [{targets: ["laya:8000"]}]

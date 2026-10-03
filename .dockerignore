@@ -1,0 +1,11 @@
+.git
+.github
+**/__pycache__
+*.pyc
+.venv
+training/data
+docs
+charts
+k8s
+grafana
+*.md

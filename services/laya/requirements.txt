@@ -1,0 +1,7 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+laya==0.3.24
+torch==2.14.1
+transformers==5.18.0
+gradio==6.29.1
+prometheus-client==0.26.0
+psycopg[binary]==3.3.6

@@ -1,0 +1,68 @@
+# Development
+
+Everything runs locally in Docker against a throwaway Postgres. Nothing in this guide touches a cluster.
+
+## Prerequisites
+
+- Docker with Compose. Give Docker at least **4 GB** of memory if you run both models; an out-of-memory kill shows up as a container that just disappears with no error (`docker ps -a`, `docker stats`).
+- `make` and a POSIX shell. On Windows use Git Bash (with `make` from Chocolatey); the Makefile points `bash` at Git's.
+- Python 3 on the host is only needed for a few helper scripts that use the standard library (`grafana/gen_dashboards.py`, `training/eval_laya.py report`). The services and the ML code run in containers.
+
+## The local stack
+
+`docker-compose.yml` defines everything for local work. Its credentials (`tickertape` / `dev`) are for a database that is only reachable on `127.0.0.1`.
+
+| Service | Start with | Where |
+|---|---|---|
+| Postgres 16 with `db/schema.sql` applied on first start | `make dev-up` | `localhost:5432` |
+| poller (runs once and exits) | `make dev-poll` | needs `SEC_USER_AGENT` for the SEC feed |
+| ner | `docker compose up -d --build ner` | UI <http://localhost:7860>, metrics `:8000/metrics` |
+| laya | `docker compose up -d --build laya` | UI <http://localhost:7861>, metrics `:8001/metrics` |
+| Grafana and Prometheus (optional) | `docker compose --profile monitoring up -d` | <http://localhost:3000>, <http://localhost:9090> |
+
+```sh
+make dev-up
+SEC_USER_AGENT="Your Name you@example.com" make dev-poll
+docker compose up -d --build ner
+docker compose up -d --build laya
+docker compose exec db psql -U tickertape -c "select status, count(*) from items group by 1"
+```
+
+- `SEC_USER_AGENT` must be `"<name> <email>"` with a real contact. The SEC blocks anonymous clients. Without it, set `enabled: false` on the `sec_8k` feed in `services/poller/feeds.yaml` for your local runs.
+- The first start of ner and laya downloads the models into Docker volumes (`hfcache`, `hfcache-laya`) and takes a few minutes. Later starts take about a minute.
+- Laya uses the public base model by default. To try another one set `LAYA_MODEL` (and for a private repo `HF_TOKEN`) in your shell before `docker compose up`.
+- Laya is slow on CPU (several seconds per item). Stop it with `docker compose stop laya` when you do not need it.
+- `make dev-down` stops everything; add `-v` to `docker compose down` to also delete the database volume.
+
+## Repository conventions
+
+- Services are built from the **repository root** so that `common/` is in the Docker context: `docker build -f services/<svc>/Dockerfile .` (or `make build SVC=<svc> TAG=<tag>`).
+- Dependencies are pinned in each service's `requirements.txt`. torch is installed from the CPU wheel index.
+- All configuration comes from environment variables; secrets never go in the repository.
+- Files use LF line endings (`.gitattributes`).
+- `grafana/gen_dashboards.py` is the source of truth for the dashboards. Edit it, run `make dashboards`, and commit the generated JSON.
+
+## Checking your changes
+
+```sh
+make dashboards                 # regenerate grafana/dashboards/*.json
+docker compose --profile monitoring up -d
+make verify-dashboards          # runs every panel query against the local Grafana and reports errors / empty panels
+```
+
+Panels that depend on kube-state-metrics or cAdvisor (poller job health, laya memory and CPU) are empty locally by design; check those on a cluster.
+
+NER quality checks live in `training/eval_ner.py` (`make eval-ner ARGS="sanity"`, see [training/README.md](../training/README.md)). Automated unit tests and CI are planned (see the open issues).
+
+## Using the services directly
+
+- ner UI: paste a headline and see highlighted entities, JSON and the resolved focus ticker.
+- laya UI: edit the state JSON and the questions JSON and see the answers with their confidence.
+- `psql` examples:
+
+```sql
+-- latest decisions with their model revision
+select i.title, d.question, d.answer, round(d.confidence::numeric, 2) as conf, d.model_rev
+from decisions d join items i on i.id = d.item_id
+order by d.created_at desc limit 20;
+```

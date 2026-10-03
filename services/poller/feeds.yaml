@@ -1,0 +1,14 @@
+watchlist: [NVDA, AAPL, MSFT, AMZN, TSLA, META, GOOGL, AMD, JPM, XOM]
+
+# Optional per feed: enabled (default true), per_ticker (expands {ticker} over the watchlist),
+# sec (true = send SEC_USER_AGENT and respect SEC rate limits).
+feeds:
+  - {name: sec_8k, url: "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&output=atom", sec: true}
+  # GlobeNewswire RSS is unreachable (HTTP/2 INTERNAL_ERROR / timeouts) from this workstation and
+  # from computa as of 2026-10-03, looks like a bot block. Re-test, then flip enabled to true.
+  - {name: globenewswire, url: "https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20about%20Public%20Companies", enabled: false}
+  # The spec's cnbc_market_insider feed (id 20409666) holds ~2 items, so these three are used instead.
+  - {name: cnbc_earnings, url: "https://www.cnbc.com/id/15839135/device/rss/rss.html"}
+  - {name: cnbc_top_news, url: "https://www.cnbc.com/id/100003114/device/rss/rss.html"}
+  - {name: cnbc_finance, url: "https://www.cnbc.com/id/10000664/device/rss/rss.html"}
+  - {name: yahoo_ticker, url: "https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US", per_ticker: true}

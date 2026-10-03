@@ -1,0 +1,124 @@
+# kube-prometheus-stack 91.9.0 for computa (4-core Celeron, shared with ner/laya). Applied by scripts/install-monitoring.sh
+# into namespace `monitoring`. Sized small on purpose: no Alertmanager, no default rules/dashboards, k3s control-plane
+# scrapes off (k3s does not expose those endpoints, so the targets would just be red).
+
+alertmanager:
+  enabled: false
+
+defaultRules:
+  create: false          # the recording rules cost CPU and nothing here uses them
+
+# Keep the series count small so a long retention is cheap: the default stack produced ~86,000 series (kubelet 43k,
+# apiserver 31k) of which the dashboards use a few thousand. Measured 2026-10-03: ~380 MB/day before this trimming.
+kubeApiServer: {enabled: false}      # nothing in our dashboards uses apiserver metrics
+kubelet:
+  serviceMonitor:
+    probes: false                    # /metrics/probes: unused
+    resource: false
+    cAdvisorInterval: 30s            # the chart default is 10s
+    # cAdvisor is where laya.json gets container CPU/memory from: keep only those two series.
+    cAdvisorMetricRelabelings:
+      - sourceLabels: [__name__]
+        action: keep
+        regex: container_(cpu_usage_seconds_total|memory_working_set_bytes)
+    # The kubelet's own /metrics is not used by any panel: keep a couple of tiny series so the target still shows as up.
+    metricRelabelings:
+      - sourceLabels: [__name__]
+        action: keep
+        regex: kubelet_node_name|kubelet_running_pods
+
+# k3s runs these inside one process and does not serve their metrics ports.
+kubeControllerManager: {enabled: false}
+kubeScheduler: {enabled: false}
+kubeProxy: {enabled: false}
+kubeEtcd: {enabled: false}
+coreDns: {enabled: false}
+kubeDns: {enabled: false}
+
+prometheusOperator:
+  resources:
+    requests: {cpu: 20m, memory: 64Mi}
+    limits: {memory: 192Mi}
+
+kube-state-metrics:      # needed by poller.json (kube_cronjob_*, kube_job_*)
+  resources:
+    requests: {cpu: 10m, memory: 48Mi}
+    limits: {memory: 128Mi}
+
+prometheus-node-exporter:
+  resources:
+    requests: {cpu: 10m, memory: 24Mi}
+    limits: {memory: 64Mi}
+
+prometheus:
+  # Not exposed outside the cluster; Grafana reaches it in-cluster. To look at it: scripts/kc-admin.sh port-forward.
+  prometheusSpec:
+    retention: 365d                  # ~10 MB/day after the trimming above, so a year is a few GB
+    retentionSize: 5GB               # hard cap on the 6Gi volume; the oldest blocks go first
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+    # Pick up ServiceMonitors from any namespace (ours live in `tickertape`) without a `release:` label.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    resources:
+      requests: {cpu: 100m, memory: 512Mi}
+      limits: {memory: 1Gi}
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: [ReadWriteOnce]
+          resources: {requests: {storage: 6Gi}}
+
+grafana:
+  defaultDashboardsEnabled: false   # only our four dashboards
+  defaultDashboardsTimezone: browser
+  # Access model (decided by Claude, user delegated): anyone on the LAN/Tailscale can VIEW dashboards without a login
+  # (same as the ner and laya UIs, no per-device setup); changing anything needs the admin login. Never expose it to
+  # the internet. Admin credentials live in Secret `grafana-admin` and the DB password in `grafana-db`
+  # (both created by scripts/create-monitoring-secrets.sh, never in the repo).
+  grafana.ini:
+    auth.anonymous:
+      enabled: true
+      org_role: Viewer
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  envFromSecret: grafana-db          # provides GRAFANA_PG_PASSWORD
+  serviceMonitor: {enabled: false}   # Grafana's own metrics (5k series) are not used
+  persistence: {enabled: false}      # dashboards and datasources are all provisioned; nothing to keep
+  service:
+    type: NodePort
+    nodePort: 30004                  # http://computa:30004 (same pattern as ner 30002, laya 30003)
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts: [grafana.local]
+    path: /
+  resources:
+    requests: {cpu: 50m, memory: 192Mi}
+    limits: {memory: 512Mi}
+  sidecar:
+    resources:
+      requests: {cpu: 10m, memory: 48Mi}
+      limits: {memory: 128Mi}
+    dashboards:
+      label: grafana_dashboard
+      labelValue: "1"
+  additionalDataSources:             # the Prometheus datasource (uid `prometheus`) is added by the chart
+    - name: tickertape-pg
+      uid: tickertape-pg
+      type: postgres
+      access: proxy
+      url: postgres.tickertape.svc.cluster.local:5432
+      user: grafana_ro               # read-only role, see scripts/create-monitoring-secrets.sh
+      database: tickertape
+      jsonData:
+        database: tickertape
+        sslmode: disable
+        postgresVersion: 1600
+        timescaledb: false
+      secureJsonData:
+        password: $GRAFANA_PG_PASSWORD
