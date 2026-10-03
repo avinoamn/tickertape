@@ -104,6 +104,8 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **`linux/amd64` only.** That is the only architecture in use; adding arm64 would double the build time of the ML images.
 
+**Release tags are protected by a ruleset with no bypass.** A published version must never change, and the realistic way to break that is a careless force push or tag deletion by the one person with access. Blocking deletion and updates for the four tag patterns makes that impossible by accident. The price is that recovering from a release that failed before publishing means disabling the ruleset for a minute, which is deliberate friction. The protection was tested on a throwaway tag (a delete and a move were both rejected) before it was trusted.
+
 ## Release engineering (in progress)
 
 Still planned (see the issues): deploys started manually from GitHub over Tailscale. The reasoning will be recorded here when it ships.

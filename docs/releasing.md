@@ -63,11 +63,18 @@ Running the workflow manually (Actions, "Release", Run workflow, pick a componen
 
 - **Package visibility.** Clusters pull the images anonymously, so each package (`tickertape-poller`, `tickertape-ner`, `tickertape-laya`) must be public. For this repository GHCR made them public on their own, because the packages are linked to the public repository through the image's source label, and the workflow's anonymous pull check confirms it on every release. If a package ever shows up as private (a fork, or a changed setting), the check fails with the fix: GitHub profile, Packages, the package, Package settings, Change visibility, Public; then re-run that job and the release continues.
 
+## Repository settings this relies on
+
+These live in GitHub, not in the repository, so they are listed here:
+
+- **`main` is protected:** pull requests only, the `CI passed` check must be green and the branch up to date, no force pushes or deletion, linear history, conversations resolved, rules apply to admins. Only squash merging is enabled, with branches deleted after merge.
+- **Release tags are immutable:** the ruleset "Release tags are immutable" blocks deleting and moving any tag matching `poller-v*`, `ner-v*`, `laya-v*` or `chart-v*`, with no bypass (so a careless `git push -f` cannot move a published version). Creating tags is not restricted.
+
 ## When something fails
 
 | Where it failed | What to do |
 |---|---|
-| **Verify** (tag format, version file, changelog, not on main, CI not green) | Nothing was published. Delete the tag (`git push origin :refs/tags/<tag>` and `git tag -d <tag>`), fix it in a PR, and tag again. |
+| **Verify** (tag format, version file, changelog, not on main, CI not green) | Nothing was published. Delete the tag, fix it in a PR, and tag again. The tag ruleset forbids deleting release tags, so disable it for a moment, delete the tag, and re-enable it: `gh api -X PUT repos/<owner>/tickertape/rulesets/<id> -f enforcement=disabled`, then `git push origin :refs/tags/<tag>` and `git tag -d <tag>`, then `-f enforcement=active` (the id is in Settings, Rules, Rulesets). Only do this for a tag whose workflow failed before publishing. |
 | **Image build**, or **chart pin check** | Nothing was published for that component. Fix the cause and re-run the failed job, or delete the tag and start over if the fix needs a new commit. |
 | **Anonymous pull check** | The package is private: make it public (see "Package visibility") and re-run the job. |
 | **After an image was pushed** (release creation failed, or a bug found) | Do not move or reuse the tag: its image exists and may have been pulled. Re-run the failed job if it is only the release step; otherwise fix forward with the next patch version. |
