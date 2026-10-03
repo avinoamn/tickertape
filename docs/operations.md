@@ -41,12 +41,7 @@ make chart-check
 ## First-time setup
 
 1. **Bootstrap access** (admin step, once): `make bootstrap` creates the namespace, the RBAC and `~/.kube/tickertape`.
-2. **Make the images available to the node.** There is no registry yet, so images are built locally and imported into k3s:
-   ```sh
-   make build SVC=poller                  # likewise ner and laya; tags tickertape/poller:<contents of services/poller/VERSION>
-   make push  SVC=poller                  # docker save, scp, `sudo k3s ctr images import` on the node
-   ```
-   `make push` asks for the node's sudo password, so run it in a real terminal.
+2. **Images.** Nothing to do for released versions: the chart pins public images on GHCR (`ghcr.io/avinoamn/tickertape-<svc>`), which the node pulls itself. To run unreleased code, build and import a local image and point the chart at it (see "Releasing a new version of a service" below).
 3. **Deploy:** `SEC_USER_AGENT="Your Name you@example.com" make deploy`. It creates the Secrets (below) and runs `helm upgrade --install tickertape charts/tickertape --atomic` as the `deployer` ServiceAccount (`scripts/helm.sh`). `--atomic` waits until everything is ready and rolls back if the release fails. The first start of ner and laya downloads their models into a volume (allow several minutes). Extra Helm arguments go in `HELM_ARGS`, for example `make deploy HELM_ARGS="--set laya.image.tag=0.1.2"`.
 4. **Check:** `make status`, `scripts/helm.sh status tickertape`, then open `http://<node>:30002` (ner) and `http://<node>:30003` (laya), and trigger a poll without waiting for the schedule:
    ```sh
