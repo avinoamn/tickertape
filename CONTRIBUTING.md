@@ -11,8 +11,8 @@ Thanks for taking a look. This is a personal learning project, but issues and pu
 
 1. Branch from `main`: `feat/<topic>`, `fix/<topic>` or `docs/<topic>`.
 2. Make the change, with its documentation. If behaviour, configuration or an operational step changes, update `README.md` or `docs/` in the same pull request.
-3. Check it locally (see [Checking your changes](docs/development.md#checking-your-changes)).
-4. Open a pull request. CI will run once it is set up; until then, describe how you tested.
+3. Check it locally: `make lint` and `make test` (see [Checking your changes](docs/development.md#checking-your-changes)). Add or update tests for the logic you touch.
+4. Open a pull request. CI runs lint, tests, dashboard and manifest checks and builds the images; it must pass before merging.
 
 ## Commit messages
 

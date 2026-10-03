@@ -45,6 +45,8 @@ docker compose exec db psql -U tickertape -c "select status, count(*) from items
 ## Checking your changes
 
 ```sh
+make lint                       # ruff, in a python:3.12 container
+make test                       # pytest, in a python:3.12 container, against the dev database (make dev-up)
 make dashboards                 # regenerate grafana/dashboards/*.json
 docker compose --profile monitoring up -d
 make verify-dashboards          # runs every panel query against the local Grafana and reports errors / empty panels
@@ -52,7 +54,15 @@ make verify-dashboards          # runs every panel query against the local Grafa
 
 Panels that depend on kube-state-metrics or cAdvisor (poller job health, laya memory and CPU) are empty locally by design; check those on a cluster.
 
-NER quality checks live in `training/eval_ner.py` (`make eval-ner ARGS="sanity"`, see [training/README.md](../training/README.md)). Automated unit tests and CI are planned (see the open issues).
+### Tests
+
+`tests/` holds the pytest suite (about 85 tests, a few seconds). It covers the logic that does not need a model: NER entity cleaning and focus-ticker resolution, Laya state building and answer flattening, poller text cleaning, feed expansion and fetching (against a fake HTTP server, including the conditional-GET path), the Postgres queue (claiming with `SKIP LOCKED`, the retry rule, the schema being re-appliable) and the question definitions. torch, Laya and GLiNER are never imported, so the suite stays light.
+
+The database tests use a real Postgres, not mocks, because the queue behaviour *is* the SQL. They read `TEST_DATABASE_URL` and are skipped without it. Each test creates its own throw-away schema and drops it afterwards, so running them against your dev database is safe (`make test` does exactly that). To run pytest directly you need Python 3.12 and `pip install -r requirements-dev.txt`.
+
+CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`: ruff and shellcheck, the tests against a Postgres service container, a check that the committed dashboards match the generator, kubeconform on `k8s/`, and a build (without pushing) of each service image. The single job `CI passed` summarises them.
+
+NER quality checks against labelled items live in `training/eval_ner.py` (`make eval-ner ARGS="sanity"`, see [training/README.md](../training/README.md)); they are measurements, not pass/fail tests.
 
 ## Using the services directly
 

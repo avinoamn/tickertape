@@ -62,6 +62,16 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **Dashboards are generated from code (`grafana/gen_dashboards.py`) and shipped as labelled ConfigMaps.** Hand-edited JSON drifts and cannot be reviewed; generated output can be checked by a script that runs every query.
 
+## Testing and CI
+
+**Database tests run against a real Postgres, in a throw-away schema per test.** The queue's guarantees (`SKIP LOCKED`, the retry rule, idempotent schema, upserts) are properties of the SQL, so a mock would only test itself. A schema per test makes it safe to point the suite at a dev database, and CI uses a Postgres service container.
+
+**Tests cover logic, not models.** torch, Laya and GLiNER are never imported in tests, so the suite takes seconds and runs anywhere. Model quality is measured by the evaluation scripts, which are measurements and not pass/fail gates.
+
+**CI builds every service image on each pull request, without pushing.** The images pin heavy dependencies, so a broken Dockerfile or an unresolvable requirement is the most likely failure of a dependency update. Layer caching keeps it affordable.
+
+**One summary job (`CI passed`) is what branch protection requires.** The list of checks can change without touching the repository settings.
+
 ## Release engineering (in progress)
 
 Planned and tracked in the issues: a public container registry (GHCR) instead of importing images by hand, a Helm chart for the `tickertape` namespace, SemVer with one version for the whole repository, GitHub Actions for CI and release, and deploys started manually from GitHub over Tailscale. The reasoning will be recorded here as each piece ships.
