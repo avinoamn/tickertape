@@ -14,12 +14,9 @@ def add_item(conn, n, status="new", age_minutes=0):
     )
 
 
-def test_schema_can_be_applied_twice(db):
-    from pathlib import Path
-
-    schema = (Path(__file__).resolve().parents[1] / "db" / "schema.sql").read_text()
-    db.execute(schema)   # the init Job re-applies it on every deploy
-    db.execute(schema)
+def test_schema_can_be_applied_twice(db, schema_sql):
+    db.execute(schema_sql)   # the init Job re-applies it on every deploy
+    db.execute(schema_sql)
     tables = {r[0] for r in db.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()")}
     assert {"items", "decisions", "feed_state"} <= tables
 

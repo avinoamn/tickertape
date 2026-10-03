@@ -1,33 +1,22 @@
 #!/usr/bin/env bash
-# Deploy steps 1-3 (Postgres, schema, poller, ner, laya + ingress) to computa's k3s. CHANGES CLUSTER STATE: ask first.
-#   SEC_USER_AGENT="<name> <email>" scripts/deploy.sh
-# Prereqs: scripts/bootstrap-access.sh was run once, and the poller image is imported on computa (scripts/ship.sh poller).
+# Install or upgrade the tickertape chart in namespace tickertape (Postgres, schema, poller, ner, laya, ingress,
+# ServiceMonitors). CHANGES CLUSTER STATE: ask first.
+#   SEC_USER_AGENT="<name> <email>" scripts/deploy.sh [extra helm args]
+#   scripts/deploy.sh --set laya.image.tag=0.1.2        (SEC_USER_AGENT is only needed while poller-config does not exist yet)
+# Prereqs: scripts/bootstrap-access.sh was run once, and the images are on the node (scripts/ship.sh <svc>).
+# First run over an install that was made with plain kubectl apply: add --take-ownership once (docs/operations.md).
+# --atomic waits for everything to be ready (ner/laya download their models on first start, hence the long timeout)
+# and rolls the release back if the upgrade fails.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
-kc="$root/scripts/kc.sh"
-ns=tickertape
+cd "$root"   # helm.exe is a native Windows binary: pass repo-relative paths
 
-# Namespace + RBAC are an admin step (scripts/bootstrap-access.sh); the deployer cannot create namespaces.
-"$root/scripts/create-secrets.sh"
+# Secrets are not part of the chart. postgres-credentials is created once, poller-config is re-applied from SEC_USER_AGENT.
+if [ -n "${SEC_USER_AGENT:-}" ] || ! scripts/kc.sh get secret poller-config >/dev/null 2>&1; then
+  scripts/create-secrets.sh
+else
+  echo "poller-config exists and SEC_USER_AGENT is not set: leaving the Secrets alone"
+fi
 
-"$kc" apply -f - < "$root/k8s/postgres.yaml"
-"$kc" rollout status statefulset/postgres -n $ns --timeout=180s
-
-# Schema ConfigMap from the file, then re-run the (idempotent) init Job.
-# (relative path from the repo root: kubectl.exe is a native Windows binary and cannot read /dev/stdin)
-(cd "$root" && "$kc" create configmap db-schema -n $ns --from-file=schema.sql=db/schema.sql --dry-run=client -o yaml) \
-  | "$kc" apply -f -
-"$kc" delete job db-init -n $ns --ignore-not-found
-"$kc" apply -f - < "$root/k8s/db-init-job.yaml"
-"$kc" wait --for=condition=complete job/db-init -n $ns --timeout=120s
-
-"$kc" apply -f - < "$root/k8s/poller-cronjob.yaml"
-
-# ner: first start downloads the model (~1 GB) into the PVC, so allow a long rollout.
-"$kc" apply -f - < "$root/k8s/ner.yaml"
-# laya: same, ~0.8 GB model download on first start (images: scripts/ship.sh ner, scripts/ship.sh laya).
-"$kc" apply -f - < "$root/k8s/laya.yaml"
-"$kc" apply -f - < "$root/k8s/ingress.yaml"
-"$kc" rollout status deployment/ner -n $ns --timeout=600s
-"$kc" rollout status deployment/laya -n $ns --timeout=900s
-echo "deployed. trigger a run now: scripts/kc.sh create job poller-manual-\$(date +%s) --from=cronjob/poller -n $ns"
+scripts/helm.sh upgrade --install tickertape charts/tickertape --atomic --timeout 20m "$@"
+scripts/helm.sh status tickertape

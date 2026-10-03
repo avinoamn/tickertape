@@ -1,0 +1,20 @@
+{{- /* Scrape ner and laya /metrics. Needs the Prometheus Operator CRDs (kube-prometheus-stack), so it is skipped when
+       they are not installed. `helm template` does not know the cluster: pass --api-versions monitoring.coreos.com/v1.
+       The poller is a short-lived CronJob and is not scraped: its dashboard reads Postgres + kube-state-metrics. */ -}}
+{{- if and .Values.serviceMonitors.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+{{- range $name := list "ner" "laya" }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tickertape.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  selector:
+    matchLabels: {app: {{ $name }}}
+  endpoints:
+    - {port: metrics, interval: {{ $.Values.serviceMonitors.interval }}}
+{{- end }}
+{{- end }}

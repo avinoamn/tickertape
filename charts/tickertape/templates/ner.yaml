@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hf-cache-ner
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ner
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- include "tickertape.storageClass" .Values.ner.cache.storageClass | nindent 2 }}
+  resources:
+    requests: {storage: {{ .Values.ner.cache.size }}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ner
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ner
+spec:
+  replicas: 1
+  strategy: {type: Recreate}   # RWO cache volume + memory limit: never run two pods at once
+  selector:
+    matchLabels: {app: ner}
+  template:
+    metadata:
+      labels: {app: ner}
+    spec:
+      {{- include "tickertape.pullSecrets" . | nindent 6 }}
+      containers:
+        - name: ner
+          image: {{ include "tickertape.image" (dict "image" .Values.ner.image "root" .) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - {name: ui, containerPort: 7860}
+            - {name: metrics, containerPort: 8000}
+          env:
+            - name: DATABASE_URL
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.postgres }}, key: DATABASE_URL}}
+            - name: SEC_USER_AGENT
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.secUserAgent }}, key: SEC_USER_AGENT}}
+          readinessProbe:       # /metrics only starts after the model is loaded
+            httpGet: {path: /metrics, port: metrics}
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.ner.resources | nindent 12 }}
+          volumeMounts:
+            - {name: hf-cache, mountPath: /root/.cache/huggingface}
+      volumes:
+        - name: hf-cache
+          persistentVolumeClaim: {claimName: hf-cache-ner}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ner
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app: ner
+    app.kubernetes.io/component: ner
+spec:
+  selector: {app: ner}
+  ports:
+    - {name: ui, port: 7860, targetPort: ui}
+    - {name: metrics, port: 8000, targetPort: metrics}
+---
+# The UI on its own Service, reachable from any device on a private network without a tunnel:
+# http://<node>:<nodePort>. Metrics stay on the ClusterIP Service above.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ner-ui
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app: ner
+    app.kubernetes.io/component: ner
+spec:
+  type: {{ .Values.ner.ui.type }}
+  selector: {app: ner}
+  ports:
+    - name: ui
+      port: 7860
+      targetPort: ui
+      {{- if eq .Values.ner.ui.type "NodePort" }}
+      nodePort: {{ .Values.ner.ui.nodePort }}
+      {{- end }}
