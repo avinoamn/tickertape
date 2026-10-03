@@ -16,6 +16,8 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 - Helm chart `charts/tickertape` replacing the plain manifests for the `tickertape` namespace (rendered output verified identical to the previous manifests, so adopting the live install restarts nothing), `scripts/helm.sh`, a Helm-based `scripts/deploy.sh`, and `make chart-check` (also run in CI). The schema file moved to `charts/tickertape/files/schema.sql`.
 
+- Release workflow (`.github/workflows/release.yml`): a `vX.Y.Z` tag builds and publishes the three images to GHCR, packages the chart and creates a GitHub Release from the changelog, after checking the tag, the chart version, the changelog and the CI result. `docs/releasing.md` describes versioning and the release procedure.
+
 ### Fixed
 
 - `ner`: the "money words" rule (`million`, `billion`, ...) never matched because its regular expression had been corrupted (backspace characters instead of word boundaries), so MONEY entities without a digit, such as "a billion dollars", were dropped. Found by the new tests.

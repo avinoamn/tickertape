@@ -75,7 +75,7 @@ More in [docs/development.md](docs/development.md).
 
 The `tickertape` namespace is one Helm chart, `charts/tickertape` (Postgres StatefulSet, schema Job, poller CronJob, ner and laya Deployments with their services, ingress and ServiceMonitors). Settings are in its `values.yaml`; Secrets are created separately and referenced by name. Monitoring is a second Helm release (`k8s/monitoring/values.yaml`, kube-prometheus-stack). Step-by-step instructions, including the one-time cluster bootstrap, secrets, rollout and rollback, are in [docs/operations.md](docs/operations.md).
 
-Releases are still manual: build the images locally, import them into k3s, then `make deploy` (a `helm upgrade --install --atomic`). A container registry, SemVer releases and GitHub Actions workflows for releasing and deploying are the next planned work; see the open issues.
+A release is a `vX.Y.Z` git tag: the [release workflow](docs/releasing.md) builds the three images, publishes them to GHCR and attaches the packaged chart to a GitHub Release. Until the first release is published, images are still built locally and imported into k3s, then `make deploy` (a `helm upgrade --install --atomic`). A workflow to start deployments from GitHub over Tailscale is the next planned piece; see the open issues.
 
 ## Repository layout
 
@@ -88,13 +88,14 @@ Releases are still manual: build the images locally, import them into k3s, then 
 | `grafana/` | Dashboard generator (`gen_dashboards.py` is the source of truth), generated JSON, and a checker that runs every panel query |
 | `training/` | Dataset building, labelling rubric, fine-tuning script and notebook, evaluation, and reports |
 | `scripts/`, `Makefile` | Build, deploy and operations helpers (`make help` lists them) |
-| `docs/` | Architecture, development, operations, model, and decisions |
+| `docs/` | Architecture, development, operations, releasing, model, and decisions |
 
 ## Documentation
 
 - [Architecture](docs/architecture.md): components, data model, how each stage works, metrics and dashboards.
 - [Development](docs/development.md): local setup, running and testing the services.
 - [Operations](docs/operations.md): deploying, secrets, rollback, monitoring, troubleshooting.
+- [Releasing](docs/releasing.md): versioning, cutting a release, what the release workflow does.
 - [Model](docs/model.md): how the Laya model was labelled, fine-tuned and evaluated, and its limits.
 - [Decisions](docs/decisions.md): why things are the way they are.
 - [Contributing](CONTRIBUTING.md) and the [changelog](CHANGELOG.md).
