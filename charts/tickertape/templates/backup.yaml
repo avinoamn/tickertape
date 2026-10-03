@@ -1,0 +1,94 @@
+{{- /* Daily pg_dump to its own volume, and a weekly proof that the newest dump restores. See docs/operations.md ("Backups").
+       The scripts are files/backup.sh and files/restore-test.sh, tested end to end by scripts/test-backup.sh. */ -}}
+{{- if .Values.backup.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-backups
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+  annotations:
+    # Helm must never delete the backups, even on `helm uninstall`.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- include "tickertape.storageClass" .Values.backup.storageClass | nindent 2 }}
+  resources:
+    requests: {storage: {{ .Values.backup.storage }}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-scripts
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+data:
+  backup.sh: |
+    {{- .Files.Get "files/backup.sh" | nindent 4 }}
+  restore-test.sh: |
+    {{- .Files.Get "files/restore-test.sh" | nindent 4 }}
+{{- range $job := list "backup" "restore-test" }}
+{{- $cfg := ternary $.Values.backup (dict "schedule" $.Values.backup.restoreTest.schedule) (eq $job "backup") }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-{{ $job }}
+  labels:
+    {{- include "tickertape.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ $cfg.schedule | quote }}
+  {{- with $.Values.backup.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels: {app: postgres-{{ $job }}}
+        spec:
+          {{- include "tickertape.pullSecrets" $ | nindent 10 }}
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70        # the postgres user of the postgres image
+            runAsGroup: 70
+            fsGroup: 70
+          containers:
+            - name: {{ $job }}
+              image: {{ $.Values.postgres.image }}
+              command: ["sh", "/scripts/{{ $job }}.sh"]
+              env:
+                - {name: PGHOST, value: postgres}
+                - name: PGUSER
+                  valueFrom: {secretKeyRef: {name: {{ $.Values.secrets.postgres }}, key: POSTGRES_USER}}
+                - name: PGPASSWORD
+                  valueFrom: {secretKeyRef: {name: {{ $.Values.secrets.postgres }}, key: POSTGRES_PASSWORD}}
+                - name: PGDATABASE
+                  valueFrom: {secretKeyRef: {name: {{ $.Values.secrets.postgres }}, key: POSTGRES_DB}}
+                {{- if eq $job "backup" }}
+                - {name: BACKUP_KEEP, value: {{ $.Values.backup.keep | quote }}}
+                {{- else }}
+                - {name: BACKUP_MAX_AGE_HOURS, value: {{ $.Values.backup.restoreTest.maxAgeHours | quote }}}
+                {{- end }}
+              resources:
+                {{- toYaml $.Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - {name: backups, mountPath: /backups{{ if eq $job "restore-test" }}, readOnly: true{{ end }}}
+                - {name: scripts, mountPath: /scripts, readOnly: true}
+          volumes:
+            - name: backups
+              persistentVolumeClaim: {claimName: postgres-backups}
+            - name: scripts
+              configMap: {name: backup-scripts}
+{{- end }}
+{{- end }}

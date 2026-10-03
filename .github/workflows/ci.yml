@@ -27,7 +27,7 @@ jobs:
       - name: ruff
         run: ruff check . --output-format github
       - name: shellcheck
-        run: shellcheck -S warning scripts/*.sh
+        run: shellcheck -S warning scripts/*.sh charts/tickertape/files/*.sh
 
   test:
     name: Tests
@@ -83,6 +83,14 @@ jobs:
       - name: Chart (helm lint, render several value sets, kubeconform)
         run: make chart-check
 
+  backup:
+    name: Backup scripts
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Backup, retention, restore test (good, stale, corrupt) and disaster recovery against a throw-away Postgres
+        run: scripts/test-backup.sh
+
   images:
     name: Build image (${{ matrix.service }})
     runs-on: ubuntu-24.04
@@ -106,7 +114,7 @@ jobs:
   ci-ok:
     name: CI passed
     if: always()
-    needs: [lint, test, dashboards, manifests, images]
+    needs: [lint, test, dashboards, manifests, backup, images]
     runs-on: ubuntu-24.04
     steps:
       - name: Check results

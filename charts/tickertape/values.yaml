@@ -60,6 +60,24 @@ laya:
     requests: {cpu: "1", memory: 2Gi}
     limits: {cpu: "2", memory: 3.5Gi}
 
+# Backups of the only irreplaceable data. A daily CronJob writes a verified pg_dump to its own volume and keeps the newest
+# `keep`; a weekly CronJob restores the newest dump into a scratch database to prove it works, and fails if the newest dump is
+# older than maxAgeHours (backups have stopped). The volume is on the same node as the database: also copy dumps off the
+# node (make backup-pull, docs/operations.md). The volume is kept by `helm uninstall`.
+backup:
+  enabled: true
+  schedule: "0 3 * * *"        # cron syntax, in the cluster's time zone unless timeZone is set (e.g. Europe/Berlin)
+  timeZone: ""
+  keep: 14
+  storage: 1Gi
+  storageClass: local-path
+  restoreTest:
+    schedule: "30 4 * * 0"
+    maxAgeHours: 36
+  resources:
+    requests: {cpu: 25m, memory: 64Mi}
+    limits: {memory: 256Mi}
+
 # Traefik (or any) Ingress for the two UIs. The NodePort Services above work without it.
 ingress:
   enabled: true

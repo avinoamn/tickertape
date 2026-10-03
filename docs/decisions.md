@@ -106,6 +106,18 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **Release tags are protected by a ruleset with no bypass.** A published version must never change, and the realistic way to break that is a careless force push or tag deletion by the one person with access. Blocking deletion and updates for the four tag patterns makes that impossible by accident. The price is that recovering from a release that failed before publishing means disabling the ruleset for a minute, which is deliberate friction. The protection was tested on a throwaway tag (a delete and a move were both rejected) before it was trusted.
 
+## Backups
+
+**Backups are verified at write time and restore-tested weekly, not just taken.** A dump that cannot be restored is not a backup. Each dump is checked to be a readable archive holding the data of every table before it replaces anything, and a weekly CronJob restores the newest one into a scratch database, so a silently broken backup shows up as a failed job within a week. The same job fails when the newest dump is older than 36 hours, which catches backups that stopped without any error.
+
+**Plain `pg_dump` in a CronJob, not a backup operator.** One small database on one node: a dump of about 10 MB takes a second. An operator, or WAL archiving for point-in-time recovery, adds moving parts the data does not justify. The cost is that recovery is to the last dump (at most a day of items, which the feeds mostly re-supply).
+
+**The backup volume is on the same node as the database, so an off-node copy is part of the design.** `make backup-pull` streams a verified dump to the developer machine. Uploading to cloud storage from the cluster would need credentials inside it, which this project avoids for now.
+
+**The backup volume survives `helm uninstall`** (`helm.sh/resource-policy: keep`), because uninstalling is exactly when someone needs the backups.
+
+**The scripts are tested against a real Postgres, including their failure cases and the destructive restore command.** A restore procedure that has only been read is a hope. `scripts/test-backup.sh` found a real bug in the first version of the scripts (`pg_restore` ignores `PGDATABASE`).
+
 ## Release engineering (in progress)
 
 Still planned (see the issues): deploys started manually from GitHub over Tailscale. The reasoning will be recorded here when it ships.
