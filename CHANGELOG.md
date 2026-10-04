@@ -4,10 +4,12 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## chart 0.4.0 - 2026-10-04
+
 ### Added
 
-- chart: Prometheus alert rules (`alerts.enabled`, a `PrometheusRule` rendered only when the Operator CRDs exist) for the poller not succeeding, ner or laya down or restarting, and failed or stale backups and restore tests. Tunable with `alerts.pollerMaxAgeMinutes`, `alerts.restartsPerHour` and `alerts.restoreTestMaxAgeDays`. The `deployer` account needs `prometheusrules` permission (`k8s/rbac.yaml`, applied by an admin).
-- Monitoring: Alertmanager is now enabled in `k8s/monitoring/values.yaml` and sends to a Discord channel through the Secret `alertmanager-discord` (made by `scripts/create-monitoring-secrets.sh` from `DISCORD_WEBHOOK_URL`).
+- Prometheus alert rules (`alerts.enabled`, a `PrometheusRule` rendered only when the Operator CRDs exist) for the poller not succeeding, ner or laya down or restarting, and failed or stale backups and restore tests. Tunable with `alerts.pollerMaxAgeMinutes`, `alerts.restartsPerHour` and `alerts.restoreTestMaxAgeDays`.
+- Upgrading from 0.3.1 only adds one `PrometheusRule`: no spec of an existing object changes and no pod restarts. The `deployer` account needs the `prometheusrules` permission first (`k8s/rbac.yaml`, applied by an admin with `make bootstrap`), or the upgrade is denied and rolled back. The alerts are delivered by the Alertmanager of the monitoring stack (`k8s/monitoring/values.yaml`, Secret `alertmanager-discord`); see docs/operations.md, section Alerts.
 
 ## chart 0.3.1 - 2026-10-04
 
