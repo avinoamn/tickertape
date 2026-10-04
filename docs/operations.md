@@ -99,7 +99,7 @@ Each service and the chart are released separately ([releasing.md](releasing.md)
    scripts/kc.sh wait --for=jsonpath='{.status.phase}'=Succeeded pod/prepull-ner -n tickertape --timeout=10m
    scripts/kc.sh delete pod prepull-ner -n tickertape
    ```
-4. **Deploy** from the chart tag's checkout: `git switch --detach chart-vX.Y.Z && make deploy`. Only the services whose pin changed restart. Watch with `scripts/kc.sh rollout status deployment/<service> -n tickertape`.
+4. **Deploy**, either from GitHub (Actions, Deploy, with the chart version: dry run first, then for real; it pre-pulls, upgrades and smoke-tests, see [releasing.md](releasing.md#deploying-from-github-actions)) or from your machine, from the chart tag's checkout: `git switch --detach chart-vX.Y.Z && make deploy`. Only the services whose pin changed restart. Watch with `scripts/kc.sh rollout status deployment/<service> -n tickertape`.
 
 Unreleased code is tried locally with docker compose ([development.md](development.md)); it is not deployed to the cluster.
 

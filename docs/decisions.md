@@ -120,6 +120,18 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **Every volume claim in the chart has a pod that uses it right away.** k3s's `local-path` class binds a volume only when a pod uses the claim, and `helm --wait` (so `--atomic`) waits for every claim to be bound. The backup volume's first user was the 03:00 CronJob, so the first deploy of the backups hung until its timeout and would have rolled back; a fresh install would have hit the same. A tiny Job that mounts the claim and exits now binds it during the wait (it is a normal resource, because hooks run after the wait, and it removes itself shortly after finishing). The failure was reproduced on a throw-away k3s (the install hung for the whole timeout), the fix was checked there (install in 9 s, upgrades with and without the Job present, uninstall keeping the claim), and `tests/test_chart.py` now fails if any claim has no consumer that exists during the wait.
 
+## Deploying from GitHub
+
+**Deploys are started by hand from GitHub, behind an approval, over Tailscale.** The cluster is on a private network, so GitHub's runners cannot reach it directly. The runner joins the tailnet as an ephemeral node for the length of the job. A self-hosted runner on the node, or a pull-based controller (Flux, Argo), would avoid the network hop but add an always-on component with cluster access, which is more attack surface than a deploy done a few times a month.
+
+**No stored Tailscale credential: GitHub OIDC federation.** The runner proves its identity with a short-lived token that only this repository's `production` Environment can mint, so there is no long-lived Tailscale secret to leak, rotate or forget. The one stored credential is the namespace-scoped `deployer` token, which is useless outside the tailnet and outside one namespace.
+
+**The Tailscale policy, not the workflow, limits the network reach.** The ephemeral node is tagged `tag:ci` and the policy lets that tag reach only the API port and the UI ports of one node. A compromised workflow cannot be talked into reaching anything else.
+
+**A deploy needs the owner's approval in a protected Environment, on a public repository.** Only people with write access can dispatch the workflow, it runs only from `main`, and it deploys only a tag that is on `main` with a published release. A rehearsal (dry run: join, authenticate, show the diff, server-side dry run) is the default so that a careless click changes nothing.
+
+**The workflow deploys exactly what `make deploy` deploys.** Same chart, same `helm upgrade --install --atomic`, plus a pre-pull and a smoke test, so there is one deployment procedure and not two that can drift.
+
 ## Release engineering (in progress)
 
 Still planned (see the issues): deploys started manually from GitHub over Tailscale. The reasoning will be recorded here when it ships.
