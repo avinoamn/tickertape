@@ -2,7 +2,7 @@
 
 Guidance for AI coding assistants working in this repo (humans: see `README.md` and `docs/`). The rules below are binding.
 
-**Start here:** `README.md` and `docs/` describe the project. If they exist locally, also read `CLAUDE.local.md` (real cluster access details, git-ignored), `HANDOFF.md` (current state, commands, gotchas, next step) and `PROGRESS.md` (tracker and decisions log); both are git-ignored working notes. Open work is in GitHub Issues.
+**Start here:** `README.md` and `docs/` describe the project (architecture, development, operations, releasing, model, decisions), and open work is in GitHub Issues (`gh issue list`). If it exists locally, also read `CLAUDE.local.md` (real cluster access details and environment gotchas, git-ignored).
 
 ## Project
 

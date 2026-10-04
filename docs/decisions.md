@@ -36,6 +36,8 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **Fine-tune Laya instead of using the base model.** On the evaluation set the base model lost to a no-model baseline on two of three questions (see [model.md](model.md)).
 
+**Historical training data came from the Wayback Machine (CNBC) and EDGAR (SEC 8-Ks), not from a news dataset or API.** A few weeks of live items are too few to train on, so history was backfilled from sources that need no key and carry summaries. Considered and not used: Finnhub's free tier (needs a key), the Hugging Face datasets `Brianferrell787/financial-news-multisource` and FNSPID (gated and non-commercial), and GDELT (no summaries). Yahoo-style per-ticker headlines cannot be recovered historically, so they stay under-represented in training (about 83 training items); more live items, labelled over time, are the first lever for that.
+
 **Labels come from an LLM, and every report says so.** There is no budget for human labelling. This keeps the project honest about what its metrics mean, and the human-labelled evaluation set is listed as the main open quality item.
 
 **The gold set is 150 items (not 100), from live items only, and never trained on.** 100 items give about plus or minus 9 points per question; live items match what the model sees in production.
