@@ -1,9 +1,35 @@
 # kube-prometheus-stack 91.9.0 for computa (4-core Celeron, shared with ner/laya). Applied by scripts/install-monitoring.sh
-# into namespace `monitoring`. Sized small on purpose: no Alertmanager, no default rules/dashboards, k3s control-plane
+# into namespace `monitoring`. Sized small on purpose: a tiny Alertmanager, no default rules/dashboards, k3s control-plane
 # scrapes off (k3s does not expose those endpoints, so the targets would just be red).
 
+# Alertmanager only forwards the alerts defined in charts/tickertape/templates/alerts.yaml to a Discord channel. The webhook
+# URL is in Secret `alertmanager-discord` (key `webhook-url`, made by scripts/create-monitoring-secrets.sh) and is mounted
+# as a file, so it is never in this repo or in the Alertmanager config.
 alertmanager:
-  enabled: false
+  enabled: true
+  alertmanagerSpec:
+    secrets: [alertmanager-discord]   # mounted at /etc/alertmanager/secrets/alertmanager-discord/
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 96Mi}
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: [ReadWriteOnce]
+          resources: {requests: {storage: 200Mi}}   # silences and notification state survive a restart
+  config:
+    route:
+      receiver: discord
+      group_by: [alertname, namespace]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+    receivers:
+      - name: discord
+        discord_configs:
+          - webhook_url_file: /etc/alertmanager/secrets/alertmanager-discord/webhook-url
+            send_resolved: true
 
 defaultRules:
   create: false          # the recording rules cost CPU and nothing here uses them

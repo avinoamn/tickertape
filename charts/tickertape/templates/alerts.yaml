@@ -1,0 +1,83 @@
+{{- /* Prometheus alert rules: the pipeline stopped, a model service is down or restarting, a backup failed or is stale.
+       Needs the Prometheus Operator CRDs, so it is skipped when they are not installed (see servicemonitors.yaml).
+       Where the alerts go is configured in Alertmanager (k8s/monitoring/values.yaml), not here. */ -}}
+{{- if and .Values.alerts.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tickertape
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: tickertape.pipeline
+      rules:
+        - alert: PollerNotSucceeding
+          expr: |
+            time() - kube_cronjob_status_last_successful_time{namespace="{{ .Release.Namespace }}", cronjob="poller"}
+              > {{ mul .Values.alerts.pollerMaxAgeMinutes 60 }}
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "The poller has not succeeded for over {{ .Values.alerts.pollerMaxAgeMinutes }} minutes"
+            description: "No new items are being fetched. Check `kubectl get jobs,pods -n {{ .Release.Namespace }}` and the poller logs."
+        - alert: PollerNeverSucceeded
+          expr: |
+            kube_cronjob_created{namespace="{{ .Release.Namespace }}", cronjob="poller"}
+              unless on(namespace, cronjob) kube_cronjob_status_last_successful_time{namespace="{{ .Release.Namespace }}", cronjob="poller"}
+          for: 30m
+          labels: {severity: warning}
+          annotations:
+            summary: "The poller has never completed a run"
+        - alert: PollerSuspended
+          expr: kube_cronjob_spec_suspend{namespace="{{ .Release.Namespace }}", cronjob="poller"} == 1
+          for: 1h
+          labels: {severity: info}
+          annotations:
+            summary: "The poller CronJob has been suspended for over an hour"
+            description: "Fine during a restore. Resume it with: kubectl patch cronjob/poller -p '{\"spec\":{\"suspend\":false}}'"
+    - name: tickertape.services
+      rules:
+        - alert: ModelServiceDown
+          expr: up{namespace="{{ .Release.Namespace }}", job=~"ner|laya"} == 0
+          for: 5m
+          labels: {severity: critical}
+          annotations:
+            summary: "{{ "{{ $labels.job }}" }} cannot be scraped"
+            description: "ner or laya is down, so items are not being processed."
+        - alert: ModelServiceMetricsMissing
+          expr: absent(up{namespace="{{ .Release.Namespace }}", job="ner"}) or absent(up{namespace="{{ .Release.Namespace }}", job="laya"})
+          for: 15m
+          labels: {severity: warning}
+          annotations:
+            summary: "Prometheus has no scrape target for ner or laya"
+            description: "The ServiceMonitors may be missing (redeploy the chart after the monitoring stack) or the services were removed."
+        - alert: ContainerRestarting
+          expr: increase(kube_pod_container_status_restarts_total{namespace="{{ .Release.Namespace }}"}[1h]) >= {{ .Values.alerts.restartsPerHour }}
+          labels: {severity: warning}
+          annotations:
+            summary: "{{ "{{ $labels.pod }}" }} restarted {{ .Values.alerts.restartsPerHour }} or more times in the last hour"
+            description: "Look at the previous container's logs (kubectl logs --previous) and whether it was OOMKilled (kubectl describe pod)."
+    - name: tickertape.backups
+      rules:
+        - alert: BackupJobFailed
+          expr: kube_job_status_failed{namespace="{{ .Release.Namespace }}", job_name=~"postgres-(backup|restore-test).*"} > 0
+          labels: {severity: critical}
+          annotations:
+            summary: "Job {{ "{{ $labels.job_name }}" }} failed"
+            description: "See docs/operations.md, section Backups. The log line says what was wrong with the dump."
+        - alert: BackupStale
+          expr: |
+            time() - kube_cronjob_status_last_successful_time{namespace="{{ .Release.Namespace }}", cronjob="postgres-backup"}
+              > {{ mul .Values.backup.restoreTest.maxAgeHours 3600 }}
+          labels: {severity: critical}
+          annotations:
+            summary: "No successful database backup for over {{ .Values.backup.restoreTest.maxAgeHours }} hours"
+        - alert: RestoreTestStale
+          expr: |
+            time() - kube_cronjob_status_last_successful_time{namespace="{{ .Release.Namespace }}", cronjob="postgres-restore-test"}
+              > {{ mul .Values.alerts.restoreTestMaxAgeDays 86400 }}
+          labels: {severity: warning}
+          annotations:
+            summary: "The weekly restore test has not passed for over {{ .Values.alerts.restoreTestMaxAgeDays }} days"
+{{- end }}

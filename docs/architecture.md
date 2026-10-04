@@ -24,7 +24,7 @@ flowchart LR
 | `ner` | Deployment, 1 replica | Named-entity recognition and focus-ticker resolution. Worker loop, Gradio UI (port 7860), `/metrics` (port 8000) |
 | `laya` | Deployment, 1 replica | Classify each item with three questions. Worker loop, Gradio UI, `/metrics` |
 | Postgres 16 | StatefulSet, 5 Gi volume | Queue, storage, and dashboard data source |
-| Prometheus + Grafana | Helm release `kps` (kube-prometheus-stack) in namespace `monitoring` | Metrics, four dashboards |
+| Prometheus + Grafana | Helm release `kps` (kube-prometheus-stack) in namespace `monitoring` | Metrics, four dashboards, alerts (via Alertmanager) |
 
 The workloads run in the Kubernetes namespace `tickertape`, monitoring in `monitoring`.
 
@@ -111,7 +111,7 @@ Everything below is one Helm chart (`charts/tickertape`, see [operations.md](ope
 - Services: a ClusterIP Service per workload carries the ports (UI 7860, metrics 8000); every UI also gets its own NodePort Service so it opens from any device on the private network (ner 30002, laya 30003, Grafana 30004). Traefik Ingresses (`ner.local`, `laya.local`, `grafana.local`) are an extra.
 - Deploy identity: a namespace-scoped `deployer` ServiceAccount (`k8s/rbac.yaml`) that can manage workloads in `tickertape` and nothing else.
 - Backups: a daily `pg_dump` CronJob into its own volume (newest 14 kept) and a weekly CronJob that restores the newest dump into a scratch database, fails if backups are stale, and proves the restore works.
-- Monitoring: kube-prometheus-stack in `monitoring`, trimmed to what the dashboards use so 365 days of history fit in a small volume; ServiceMonitors for ner and laya; Grafana reads Postgres through a read-only role.
+- Monitoring: kube-prometheus-stack in `monitoring`, trimmed to what the dashboards use so 365 days of history fit in a small volume; ServiceMonitors for ner and laya; Grafana reads Postgres through a read-only role. Prometheus alert rules (poller, model services, backups) go through a small Alertmanager to a Discord channel.
 
 ## Known limits
 

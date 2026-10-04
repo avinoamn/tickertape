@@ -45,7 +45,7 @@ rules:
     resources: [ingresses]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [monitoring.coreos.com]   # step 4 (kube-prometheus-stack CRDs)
-    resources: [servicemonitors]
+    resources: [servicemonitors, prometheusrules]
     verbs: [get, list, watch, create, update, patch, delete]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
