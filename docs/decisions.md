@@ -126,6 +126,8 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **No stored Tailscale credential: GitHub OIDC federation.** The runner proves its identity with a short-lived token that only this repository's `production` Environment can mint, so there is no long-lived Tailscale secret to leak, rotate or forget. The one stored credential is the namespace-scoped `deployer` token, which is useless outside the tailnet and outside one namespace.
 
+**The trust credential's subject uses GitHub's immutable form** (`repo:<owner>@<owner-id>/<repo>@<repo-id>:environment:production`). Such a subject cannot be inherited by a different repository that later takes over a renamed or deleted name, which is the point of the immutable setting, so the setting is kept and the credential follows it. (The first dry run failed with a 403 because the credential used the name-only form.)
+
 **The Tailscale policy, not the workflow, limits the network reach.** The ephemeral node is tagged `tag:ci` and the policy lets that tag reach only the API port and the UI ports of one node. A compromised workflow cannot be talked into reaching anything else.
 
 **A deploy needs the owner's approval in a protected Environment, on a public repository.** Only people with write access can dispatch the workflow, it runs only from `main`, and it deploys only a tag that is on `main` with a published release. A rehearsal (dry run: join, authenticate, show the diff, server-side dry run) is the default so that a careless click changes nothing.

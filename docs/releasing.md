@@ -99,7 +99,7 @@ Check whether your policy still has the default "allow everything" rule (`"src":
 **2. Tailscale trust credential** (Settings, Trust credentials, Credential, OpenID Connect):
 
 - Issuer: **GitHub Actions**.
-- Subject: `repo:<owner>/tickertape:environment:production`
+- Subject: your repository's OIDC subject prefix followed by `:environment:production`. Get the prefix with `gh api repos/<owner>/tickertape/actions/oidc/customization/sub --jq .sub_claim_prefix`. Repositories use GitHub's **immutable subject claims**, so the prefix contains numeric IDs and looks like `repo:<owner>@<owner-id>/tickertape@<repo-id>`, giving for example `repo:avinoamn@52762010/tickertape@1403619038:environment:production`. The name-only form `repo:<owner>/tickertape:environment:production` does not match and fails with a 403. The string has no trailing colon.
 - Scope: `auth_keys` (write), with the tag `tag:ci`.
 - Copy the **client ID** and the **audience** it shows.
 
@@ -140,7 +140,7 @@ Then run the workflow once with `dry_run` on. It proves the whole chain (OIDC to
 
 | Where | Likely cause |
 |---|---|
-| "Join the tailnet" fails | The trust credential's subject does not match `repo:<owner>/tickertape:environment:production`, the scope or tag is wrong, or `TS_OAUTH_CLIENT_ID` / `TS_AUDIENCE` are wrong. |
+| "Join the tailnet" fails with `token exchange failed with status 403` | The trust credential does not accept GitHub's token. Most often the subject: it must be the repository's OIDC subject prefix plus `:environment:production` (see step 2: with immutable subject claims the prefix contains numeric IDs). Otherwise the scope or tag is wrong, or `TS_OAUTH_CLIENT_ID` / `TS_AUDIENCE` are wrong. |
 | "Reach the cluster" fails | The policy does not let `tag:ci` reach the node on 6443 (step 1), or `KUBE_SERVER` is wrong. A brand new node needs up to a minute to be accepted by its peers; the step retries. |
 | "x509: certificate is valid for ..." | `KUBE_TLS_SERVER_NAME` is not a name in the API certificate. |
 | "Unauthorized" / "forbidden" | `KUBE_TOKEN` is stale (the Secret `deployer-token` was recreated) or belongs to another account. |
