@@ -1,0 +1,187 @@
+name: Deploy
+
+# Deploys a released chart (tag chart-vX.Y.Z) to the cluster, started by hand. The runner joins the tailnet as an ephemeral
+# node (GitHub OIDC federation: no stored Tailscale credential) and acts as the namespace-scoped `deployer` ServiceAccount.
+# The job runs in the GitHub Environment `production`, which needs a reviewer's approval and is limited to main.
+# One-time setup (Tailscale policy, trust credential, the Environment's secrets and variables): docs/releasing.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Chart version to deploy, for example 0.3.1 (the tag chart-v<version> must exist)
+        type: string
+        required: true
+      dry_run:
+        description: Rehearsal - join the tailnet, authenticate, show what would change, change nothing
+        type: boolean
+        default: true
+      prepull:
+        description: Pull the images the chart pins onto the node first (keeps the model pause short)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.dry_run && 'Dry run' || 'Deploy' }} chart ${{ inputs.version }}
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write   # the Tailscale action exchanges GitHub's OIDC token for a node credential
+    env:
+      TAG: chart-v${{ inputs.version }}
+      NAMESPACE: tickertape
+    steps:
+      - name: Check the version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'
+          [[ "$VERSION" =~ $semver ]] || { echo "::error::'$VERSION' is not a SemVer version (for example 0.3.1)"; exit 1; }
+
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          fetch-depth: 0
+
+      - name: The tag must be a published release on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor HEAD origin/main || { echo "::error::$TAG is not on main"; exit 1; }
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json tagName --jq .tagName > /dev/null \
+            || { echo "::error::no GitHub Release for $TAG: release the chart first (docs/releasing.md)"; exit 1; }
+          echo "Deploying $(git rev-parse --short HEAD) ($TAG)" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: azure/setup-helm@v5
+        with:
+          version: v3.21.2
+
+      - name: Join the tailnet
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+
+      - name: Kubeconfig for the deployer account
+        env:
+          KUBE_SERVER: ${{ vars.KUBE_SERVER }}
+          KUBE_TLS_SERVER_NAME: ${{ vars.KUBE_TLS_SERVER_NAME }}
+          KUBE_CA_DATA: ${{ vars.KUBE_CA_DATA }}
+          KUBE_TOKEN: ${{ secrets.KUBE_TOKEN }}
+        run: |
+          set -euo pipefail
+          for v in KUBE_SERVER KUBE_TLS_SERVER_NAME KUBE_CA_DATA KUBE_TOKEN; do
+            [ -n "${!v}" ] || { echo "::error::$v is not set in the production environment (docs/releasing.md)"; exit 1; }
+          done
+          umask 077
+          cat > "$RUNNER_TEMP/kubeconfig" <<EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+            - name: cluster
+              cluster:
+                server: ${KUBE_SERVER}
+                tls-server-name: ${KUBE_TLS_SERVER_NAME}
+                certificate-authority-data: ${KUBE_CA_DATA}
+          users:
+            - name: deployer
+              user:
+                token: ${KUBE_TOKEN}
+          contexts:
+            - name: deployer
+              context: {cluster: cluster, user: deployer, namespace: ${NAMESPACE}}
+          current-context: deployer
+          EOF
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Reach the cluster (a new tailnet node takes a moment to be accepted by its peers)
+        run: |
+          for attempt in $(seq 1 12); do
+            if kubectl get pods -n "$NAMESPACE" --request-timeout=15s > /dev/null 2>&1; then
+              echo "cluster reachable after $attempt attempt(s)"
+              kubectl auth whoami 2>/dev/null || true
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::cannot reach the cluster API through the tailnet. Check the Tailscale policy (tag:ci may reach the API port) and KUBE_SERVER."
+          kubectl get pods -n "$NAMESPACE" --request-timeout=15s   # shows the real error
+          exit 1
+
+      - name: Current release
+        run: helm list -n "$NAMESPACE"
+
+      - name: What would change
+        run: |
+          helm template tickertape charts/tickertape -n "$NAMESPACE" --api-versions monitoring.coreos.com/v1 > "$RUNNER_TEMP/rendered.yaml"
+          echo "images pinned by $TAG:"
+          sed -n 's/^ *image: *//p' "$RUNNER_TEMP/rendered.yaml" | sort -u | sed 's/^/  /'
+          # kubectl diff exits 1 when there are differences, which is the point here
+          kubectl diff -f "$RUNNER_TEMP/rendered.yaml" || true
+
+      - name: Pre-pull the pinned images onto the node
+        if: ${{ !inputs.dry_run && inputs.prepull }}
+        run: |
+          set -euo pipefail
+          images=$(sed -n 's/^ *image: *//p' "$RUNNER_TEMP/rendered.yaml" | sort -u | grep '^ghcr.io/')
+          names=""
+          for image in $images; do
+            name="prepull-$(basename "${image%%:*}" | sed 's/^tickertape-//')"
+            kubectl delete pod "$name" -n "$NAMESPACE" --ignore-not-found > /dev/null
+            kubectl run "$name" -n "$NAMESPACE" --image="$image" --restart=Never --command -- true > /dev/null
+            names="$names $name"
+          done
+          for name in $names; do
+            kubectl wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$name" -n "$NAMESPACE" --timeout=10m
+            kubectl delete pod "$name" -n "$NAMESPACE" > /dev/null
+          done
+
+      - name: Server-side dry run
+        if: ${{ inputs.dry_run }}
+        run: |
+          helm upgrade --install tickertape charts/tickertape -n "$NAMESPACE" --dry-run=server > /dev/null
+          echo "Dry run succeeded: nothing was changed. Run again with dry_run unchecked to deploy." | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy (helm upgrade --atomic)
+        if: ${{ !inputs.dry_run }}
+        run: helm upgrade --install tickertape charts/tickertape -n "$NAMESPACE" --atomic --timeout 20m
+
+      - name: Smoke test
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_HOST: ${{ vars.NODE_HOST }}
+        run: |
+          set -euo pipefail
+          helm status tickertape -n "$NAMESPACE" | sed -n '1,7p'
+          kubectl rollout status deployment/ner deployment/laya -n "$NAMESPACE" --timeout=10m
+          kubectl get pods -n "$NAMESPACE" -o custom-columns=NAME:.metadata.name,READY:.status.containerStatuses[0].ready,RESTARTS:.status.containerStatuses[0].restartCount
+          kubectl exec -n "$NAMESPACE" postgres-0 -- psql -U tickertape -Atc "select status, count(*) from items group by 1 order by 1"
+          if [ -n "$NODE_HOST" ]; then
+            for svc in ner-ui laya-ui; do
+              port=$(kubectl get svc "$svc" -n "$NAMESPACE" -o jsonpath='{.spec.ports[0].nodePort}')
+              curl -fsS -o /dev/null --max-time 20 --retry 6 --retry-delay 10 --retry-all-errors "http://$NODE_HOST:$port/"
+              echo "$svc answers on $NODE_HOST:$port"
+            done
+          else
+            echo "NODE_HOST is not set: skipping the UI checks"
+          fi
+          echo "Deployed $TAG: $(helm list -n "$NAMESPACE" -o json | sed -n 's/.*"revision":"\([0-9]*\)".*/revision \1/p')" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: What the cluster looks like after a failure
+        if: ${{ failure() }}
+        run: |
+          kubectl get pods,jobs -n "$NAMESPACE" || true
+          kubectl get events -n "$NAMESPACE" --sort-by=.lastTimestamp | tail -20 || true
+          helm history tickertape -n "$NAMESPACE" | tail -5 || true
