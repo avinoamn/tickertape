@@ -62,6 +62,8 @@ Panels that depend on kube-state-metrics or cAdvisor (poller job health, laya me
 
 The database tests use a real Postgres, not mocks, because the queue behaviour *is* the SQL. They read `TEST_DATABASE_URL` and are skipped without it. Each test creates its own throw-away schema and drops it afterwards, so running them against your dev database is safe (`make test` does exactly that). To run pytest directly you need Python 3.12 and `pip install -r requirements-dev.txt`.
 
+`tests/test_chart.py` renders the chart with `helm template` and checks rules that protect `helm upgrade --wait` (for instance that every volume claim has a pod that uses it right away). It is skipped when `helm` is not installed, which is the case inside the `make test` container; CI installs helm and runs it, and so can you with helm on your PATH and pytest installed.
+
 CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`: ruff and shellcheck, the tests against a Postgres service container, a check that the committed dashboards match the generator, kubeconform on `k8s/`, and a build (without pushing) of each service image. The single job `CI passed` summarises them.
 
 NER quality checks against labelled items live in `training/eval_ner.py` (`make eval-ner ARGS="sanity"`, see [training/README.md](../training/README.md)); they are measurements, not pass/fail tests.
