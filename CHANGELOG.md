@@ -4,6 +4,13 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## chart 0.3.1 - 2026-10-04
+
+### Fixed
+
+- The deploy no longer hangs on the backup volume claim. With storage that binds a volume only when a pod uses it (k3s's `local-path`), the claim stayed `Pending` until the first CronJob run, and `helm --wait` / `--atomic` waits for every claim to be bound, so the first deploy of 0.3.0 hung until its timeout (a fresh install would too). A small Job `postgres-backups-bind` now mounts the claim right away and removes itself shortly after finishing.
+- Upgrading from 0.3.0 only adds that Job: no spec of an existing object changes and no pod restarts. Use 0.3.1 rather than 0.3.0 for new installs.
+
 ## chart 0.3.0 - 2026-10-04
 
 ### Added

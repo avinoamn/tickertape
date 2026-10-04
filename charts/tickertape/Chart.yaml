@@ -4,7 +4,7 @@ description: Market-news pipeline - RSS poller, NER and Laya decision services a
 type: application
 # The chart is versioned on its own (tag chart-vX.Y.Z). The services have their own versions (services/<svc>/VERSION);
 # this chart pins the image tag of each one in values.yaml, so deploying a chart version deploys that exact set.
-version: 0.3.0
+version: 0.3.1
 kubeVersion: ">=1.27.0-0"
 home: https://github.com/avinoamn/tickertape
 sources:
