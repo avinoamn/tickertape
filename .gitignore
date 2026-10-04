@@ -10,8 +10,4 @@ training/data/
 
 # Working notes and personal environment details (kept locally, not part of the public repo)
 CLAUDE.local.md
-HANDOFF.md
-PROGRESS.md
-market-news-pipeline-spec.md
-release-engineering-spec.md
 computa-commands.md
