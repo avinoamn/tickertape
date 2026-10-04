@@ -17,6 +17,42 @@ spec:
   resources:
     requests: {storage: {{ .Values.backup.storage }}}
 ---
+# Storage classes with WaitForFirstConsumer binding (k3s's local-path) bind a volume only when a pod uses the claim, and
+# `helm --wait` (so --atomic) waits for every claim to be Bound. The first user of this claim would be the CronJob,
+# hours later, so the deploy would hang until its timeout. This Job is the first user: it mounts the claim and exits.
+# It is a normal resource, not a hook: hooks run after the wait. It removes itself shortly after finishing, and Helm
+# creates it again on the next upgrade (a cheap no-op on a claim that is already bound).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-backups-bind
+  labels:
+    {{- include "tickertape.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  ttlSecondsAfterFinished: 120
+  backoffLimit: 2
+  template:
+    spec:
+      {{- include "tickertape.pullSecrets" . | nindent 6 }}
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+      containers:
+        - name: bind
+          image: {{ .Values.postgres.image }}
+          command: ["sh", "-c", "test -w /backups"]   # also proves the volume is writable by the backup user
+          resources:
+            {{- toYaml .Values.backup.resources | nindent 12 }}
+          volumeMounts:
+            - {name: backups, mountPath: /backups}
+      volumes:
+        - name: backups
+          persistentVolumeClaim: {claimName: postgres-backups}
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:

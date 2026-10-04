@@ -118,6 +118,8 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **The scripts are tested against a real Postgres, including their failure cases and the destructive restore command.** A restore procedure that has only been read is a hope. `scripts/test-backup.sh` found a real bug in the first version of the scripts (`pg_restore` ignores `PGDATABASE`).
 
+**Every volume claim in the chart has a pod that uses it right away.** k3s's `local-path` class binds a volume only when a pod uses the claim, and `helm --wait` (so `--atomic`) waits for every claim to be bound. The backup volume's first user was the 03:00 CronJob, so the first deploy of the backups hung until its timeout and would have rolled back; a fresh install would have hit the same. A tiny Job that mounts the claim and exits now binds it during the wait (it is a normal resource, because hooks run after the wait, and it removes itself shortly after finishing). The failure was reproduced on a throw-away k3s (the install hung for the whole timeout), the fix was checked there (install in 9 s, upgrades with and without the Job present, uninstall keeping the claim), and `tests/test_chart.py` now fails if any claim has no consumer that exists during the wait.
+
 ## Release engineering (in progress)
 
 Still planned (see the issues): deploys started manually from GitHub over Tailscale. The reasoning will be recorded here when it ships.

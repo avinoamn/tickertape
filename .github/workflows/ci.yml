@@ -49,6 +49,9 @@ jobs:
       TEST_DATABASE_URL: postgresql://tickertape:test@localhost:5432/tickertape
     steps:
       - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5   # tests/test_chart.py renders the chart
+        with:
+          version: v3.21.2
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
