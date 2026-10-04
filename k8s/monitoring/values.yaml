@@ -25,6 +25,7 @@ alertmanager:
       group_wait: 30s
       group_interval: 5m
       repeat_interval: 12h
+      routes: []          # drop the chart's default Watchdog route: it points at a "null" receiver that is replaced below
     receivers:
       - name: discord
         discord_configs:
