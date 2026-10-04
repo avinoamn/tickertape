@@ -4,6 +4,11 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+### Added
+
+- chart: Prometheus alert rules (`alerts.enabled`, a `PrometheusRule` rendered only when the Operator CRDs exist) for the poller not succeeding, ner or laya down or restarting, and failed or stale backups and restore tests. Tunable with `alerts.pollerMaxAgeMinutes`, `alerts.restartsPerHour` and `alerts.restoreTestMaxAgeDays`. The `deployer` account needs `prometheusrules` permission (`k8s/rbac.yaml`, applied by an admin).
+- Monitoring: Alertmanager is now enabled in `k8s/monitoring/values.yaml` and sends to a Discord channel through the Secret `alertmanager-discord` (made by `scripts/create-monitoring-secrets.sh` from `DISCORD_WEBHOOK_URL`).
+
 ## chart 0.3.1 - 2026-10-04
 
 ### Fixed

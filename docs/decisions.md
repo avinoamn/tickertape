@@ -136,6 +136,8 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **The workflow deploys exactly what `make deploy` deploys.** Same chart, same `helm upgrade --install --atomic`, plus a pre-pull and a smoke test, so there is one deployment procedure and not two that can drift.
 
+**Alerts are Prometheus rules in the chart, sent by a small Alertmanager to Discord.** The rules live next to the workloads they watch, so they are versioned, reviewed and deployed with them (and skipped when the Operator is not installed, like the ServiceMonitors). Grafana alerting was rejected because Grafana here has no persistence and its provisioning would split the rules from the chart. Discord was chosen because it is a free phone push without per-device setup; the webhook URL is the only secret and lives in a cluster Secret mounted as a file, never in the config. Rules watch outcomes (last successful run, scrape up, restarts, failed jobs) rather than internal counters, so they work without new instrumentation. A backlog-growth rule needs a metric Prometheus does not have yet and was left out.
+
 ## Release engineering (in progress)
 
 Still planned (see the issues): deploys started manually from GitHub over Tailscale. The reasoning will be recorded here when it ships.

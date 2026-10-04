@@ -89,3 +89,11 @@ ingress:
 serviceMonitors:
   enabled: true
   interval: 30s
+
+# Prometheus alert rules (PrometheusRule). Only rendered when the CRDs exist. They fire in Prometheus; where they are sent
+# is Alertmanager's job (k8s/monitoring/values.yaml, docs/operations.md).
+alerts:
+  enabled: true
+  pollerMaxAgeMinutes: 20      # the poller runs every 5 minutes, so this is about four missed runs
+  restartsPerHour: 3           # container restarts in an hour before ContainerRestarting fires
+  restoreTestMaxAgeDays: 9     # the restore test runs weekly

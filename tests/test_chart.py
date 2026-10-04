@@ -50,3 +50,31 @@ def test_every_claim_is_used_by_a_pod_that_exists_during_the_wait(args):
 def test_the_backup_volume_is_kept_on_uninstall():
     claim = next(d for d in render() if d["kind"] == "PersistentVolumeClaim" and d["metadata"]["name"] == "postgres-backups")
     assert claim["metadata"]["annotations"]["helm.sh/resource-policy"] == "keep"
+
+
+def alert_rules(*args):
+    rule = next(d for d in render(*args) if d["kind"] == "PrometheusRule")
+    return [r for g in rule["spec"]["groups"] for r in g["rules"]]
+
+
+def test_alert_rules_cover_the_pipeline_services_and_backups():
+    names = {r["alert"] for r in alert_rules()}
+    assert {"PollerNotSucceeding", "ModelServiceDown", "ContainerRestarting", "BackupJobFailed", "BackupStale"} <= names
+
+
+def test_every_alert_says_what_is_wrong_and_how_urgent_it_is():
+    for r in alert_rules():
+        assert r["annotations"]["summary"], r["alert"]
+        assert r["labels"]["severity"] in {"info", "warning", "critical"}, r["alert"]
+
+
+def test_alert_thresholds_follow_the_values():
+    rules = {r["alert"]: r["expr"] for r in alert_rules("--set", "alerts.pollerMaxAgeMinutes=30", "--set", "backup.restoreTest.maxAgeHours=48")}
+    assert "> 1800" in rules["PollerNotSucceeding"]
+    assert "> 172800" in rules["BackupStale"]
+
+
+def test_alerts_can_be_turned_off_and_need_the_operator_crds():
+    assert not [d for d in render("--set", "alerts.enabled=false") if d["kind"] == "PrometheusRule"]
+    out = subprocess.run(["helm", "template", "tickertape", str(CHART), "-n", "tickertape"], check=True, capture_output=True, text=True).stdout
+    assert "PrometheusRule" not in out

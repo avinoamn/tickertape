@@ -47,7 +47,7 @@ make chart-check
    ```sh
    scripts/kc.sh create job poller-manual-$(date +%s) --from=cronjob/poller -n tickertape
    ```
-5. **Monitoring** (optional, admin): `make monitoring-secrets` then `make monitoring-install` (Helm release `kps`, chart pinned in `scripts/install-monitoring.sh`, values in `k8s/monitoring/values.yaml`). Grafana is at `http://<node>:30004`: anonymous viewing, admin login for changes. The admin password is generated in the cluster:
+5. **Monitoring** (optional, admin): create a Discord webhook for alerts (channel settings, Integrations, Webhooks) and put it in the environment as `DISCORD_WEBHOOK_URL` without echoing it, then run `make monitoring-secrets` and `make monitoring-install` (Helm release `kps`, chart pinned in `scripts/install-monitoring.sh`, values in `k8s/monitoring/values.yaml`). Grafana is at `http://<node>:30004`: anonymous viewing, admin login for changes. The admin password is generated in the cluster:
    ```sh
    scripts/kc-admin.sh get secret grafana-admin -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d
    ```
@@ -78,6 +78,7 @@ Secrets are never in the repository or in the chart; the chart only refers to th
 | `poller-config` | `scripts/create-secrets.sh` | `SEC_USER_AGENT` |
 | `hf-read-token` | `scripts/create-hf-secret.sh` | a Hugging Face read token, only needed to run a private fine-tuned model (set `secrets.hfToken=""` to run without it) |
 | `grafana-admin`, `grafana-db` (namespace `monitoring`) | `scripts/create-monitoring-secrets.sh` | generated Grafana admin password and the password of the read-only database role `grafana_ro` |
+| `alertmanager-discord` (namespace `monitoring`) | `scripts/create-monitoring-secrets.sh`, from the env var `DISCORD_WEBHOOK_URL` | the Discord webhook URL that alerts are sent to (anyone with it can post in the channel, so treat it as a secret) |
 
 For a token, avoid shell history and the process list:
 
@@ -124,6 +125,26 @@ Reprocessing runs at the model's speed (around 17 s per item on the reference no
 - Prometheus is internal only. It keeps 365 days of history, capped at 5 GB on a 6 Gi volume, which works because the scrape set is trimmed. Watch `prometheus_tsdb_storage_blocks_bytes`; local-path volumes cannot be resized, so growing it means a new volume.
 - Postgres-backed panels are not limited by Prometheus retention (items are kept forever).
 
+### Alerts
+
+Without alerts a stopped pipeline is only noticed by looking at a dashboard. The chart defines Prometheus rules (`charts/tickertape/templates/alerts.yaml`, switch `alerts.enabled`), Prometheus evaluates them, and Alertmanager (part of the `kps` release, one small pod) sends them to a Discord channel through the webhook in Secret `alertmanager-discord`. A message is sent when an alert starts and again when it resolves, and a still-firing alert is repeated every 12 hours.
+
+| Alert | Fires when | Severity |
+|---|---|---|
+| `PollerNotSucceeding` | no successful poller run for `alerts.pollerMaxAgeMinutes` (20) minutes, for 5 minutes | warning |
+| `PollerNeverSucceeded` | the poller CronJob exists but has never completed a run (30 minutes) | warning |
+| `PollerSuspended` | the poller CronJob has been suspended for an hour (normal during a restore) | info |
+| `ModelServiceDown` | ner or laya cannot be scraped for 5 minutes | critical |
+| `ModelServiceMetricsMissing` | Prometheus has no scrape target for ner or laya at all (ServiceMonitor missing) for 15 minutes | warning |
+| `ContainerRestarting` | a container in `tickertape` restarted `alerts.restartsPerHour` (3) times in an hour, which includes out-of-memory kills | warning |
+| `BackupJobFailed` | a `postgres-backup` or `postgres-restore-test` Job failed | critical |
+| `BackupStale` | no successful backup for `backup.restoreTest.maxAgeHours` (36) hours | critical |
+| `RestoreTestStale` | the weekly restore test has not passed for `alerts.restoreTestMaxAgeDays` (9) days | warning |
+
+Not covered yet: a growing backlog of unprocessed items and rising error counters (see the issues). Look at what is firing (read-only) through Prometheus's or Alertmanager's API, with `scripts/kc-admin.sh port-forward -n monitoring svc/kps-kube-prometheus-stack-alertmanager 9093`, or in the Alertmanager page of that port. To test the channel after installing, send a throw-away alert from that port-forward: `curl -XPOST localhost:9093/api/v2/alerts -H 'Content-Type: application/json' -d '[{"labels":{"alertname":"TestAlert","severity":"info"}}]'`.
+
+The rules are checked in CI by rendering the chart (`tests/test_chart.py`); the expressions themselves can be checked with `promtool check rules` after rendering. Applying them to a cluster needs the `deployer` to be allowed `prometheusrules` (`k8s/rbac.yaml`, re-applied by `make bootstrap`, admin) and the Alertmanager config to be installed with `make monitoring-install`.
+
 ## Troubleshooting
 
 | Symptom | Things to check |
@@ -157,7 +178,7 @@ The chart (`backup.enabled`, on by default) creates:
 | CronJob `postgres-backup` | daily at 03:00 (`backup.schedule`) | `pg_dump -Fc` into the volume `postgres-backups`. The archive is checked to be readable and to hold the data of every table before it replaces anything, and only the newest 14 (`backup.keep`) are kept. |
 | CronJob `postgres-restore-test` | Sundays at 04:30 (`backup.restoreTest.schedule`) | Restores the newest dump into a scratch database on the same server, checks that the tables have data, drops the scratch database, and **fails if the newest dump is older than 36 hours** (`backup.restoreTest.maxAgeHours`), which means backups have stopped. |
 
-A failing job shows in `scripts/kc.sh get jobs -n tickertape` and in the kube-state-metrics job-health data that the Poller dashboard already uses; alert rules for it are tracked in the issues. Look at them, and run either one right now instead of waiting for the schedule:
+A failing job shows in `scripts/kc.sh get jobs -n tickertape` and in the kube-state-metrics job-health data that the Poller dashboard already uses, and it raises an alert (see [Alerts](#alerts)). Look at them, and run either one right now instead of waiting for the schedule:
 
 ```sh
 scripts/kc.sh get cronjob postgres-backup postgres-restore-test -n tickertape

@@ -39,6 +39,23 @@ stringData:
 EOF
 fi
 
+# Alertmanager's Discord webhook. Provide it as an env var (Discord: channel settings, Integrations, Webhooks); it is never
+# written to the repo, argv or logs. Skipped if the Secret exists (to replace it: delete the Secret, run this again).
+if "$kca" get secret alertmanager-discord -n monitoring >/dev/null 2>&1; then
+  echo "alertmanager-discord exists, leaving it alone"
+elif [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
+  "$kca" apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata: {name: alertmanager-discord, namespace: monitoring}
+stringData:
+  webhook-url: "$DISCORD_WEBHOOK_URL"
+EOF
+else
+  echo "DISCORD_WEBHOOK_URL is not set: alertmanager-discord was NOT created, and Alertmanager will not start without it" >&2
+  exit 1
+fi
+
 # Read-only role: SELECT on the pipeline tables only, writes impossible, runaway queries cut after 15 s.
 # The SQL goes over stdin so the password is not visible in any process list. Hex passwords need no quoting.
 "$kc" exec -i -n tickertape postgres-0 -- psql -U tickertape -d tickertape -v ON_ERROR_STOP=1 -q <<EOF
