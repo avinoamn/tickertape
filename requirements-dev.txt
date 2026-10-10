@@ -1,7 +1,7 @@
 # Dev and CI tooling plus the light runtime libraries the tests import (no torch, no models).
-pytest>=8,<10
-ruff>=0.8
-feedparser>=6.0,<7
+pytest>=9.1.1,<10
+ruff>=0.16.10
+feedparser>=6.0.14,<7
 httpx==0.28.1
 psycopg[binary]==3.3.6
 PyYAML==6.0.3
