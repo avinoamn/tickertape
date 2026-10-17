@@ -1,6 +1,6 @@
 # Build from the repo root so common/ is in the context:
 #   docker build -f services/poller/Dockerfile -t tickertape/poller:0.1.0 .
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
