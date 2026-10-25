@@ -1,4 +1,5 @@
-# Same uids as k8s/monitoring/values.yaml, so the dashboard JSON works unchanged. Dev credentials, not secrets.
+# Same uids as on the cluster (Prometheus from kube-prometheus-stack, tickertape-pg from scripts/create-grafana-datasource.sh),
+# so the dashboard JSON works unchanged. Dev credentials, not secrets.
 apiVersion: 1
 datasources:
   - {name: Prometheus, uid: prometheus, type: prometheus, access: proxy, url: "http://prometheus:9090", isDefault: true}

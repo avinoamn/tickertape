@@ -5,8 +5,8 @@
 
 Edit the panels here, regenerate, and commit the JSON: the chart ships it as ConfigMaps (templates/dashboards.yaml),
 so a dashboard change reaches the cluster with the next chart release. The output lives inside the chart because Helm
-cannot read files outside it. Datasource uids match the provisioning in k8s/monitoring/values.yaml (and grafana/dev/ for
-the local test rig): Prometheus `prometheus`, Postgres `tickertape-pg`.
+cannot read files outside it. Datasource uids match the cluster (Prometheus `prometheus` from kube-prometheus-stack,
+Postgres `tickertape-pg` from scripts/create-grafana-datasource.sh) and grafana/dev/ for the local test rig.
 """
 import json
 import os
