@@ -47,7 +47,7 @@ make chart-check
    ```sh
    scripts/kc.sh create job poller-manual-$(date +%s) --from=cronjob/poller -n tickertape
    ```
-5. **Monitoring** (optional, admin): create a Discord webhook for alerts (channel settings, Integrations, Webhooks) and put it in the environment as `DISCORD_WEBHOOK_URL` without echoing it, then run `make monitoring-secrets` and `make monitoring-install` (Helm release `kps`, chart pinned in `scripts/install-monitoring.sh`, values in `k8s/monitoring/values.yaml`). Grafana is at `http://<node>:30004`: anonymous viewing, admin login for changes. The admin password is generated in the cluster:
+5. **Monitoring** (optional, admin): create a Discord webhook for alerts (channel settings, Integrations, Webhooks) and put it in the environment as `DISCORD_WEBHOOK_URL` without echoing it, then run `make monitoring-secrets` and `make monitoring-install` (Helm release `kps`, chart pinned in `scripts/install-monitoring.sh`, values in `k8s/monitoring/values.yaml`). Then `make grafana-datasource` (as the `deployer`, after the first deploy because it needs the database) creates the read-only database role `grafana_ro` and the Postgres datasource that the dashboards use. Grafana is at `http://<node>:30004`: anonymous viewing, admin login for changes. The admin password is generated in the cluster:
    ```sh
    scripts/kc-admin.sh get secret grafana-admin -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d
    ```
@@ -77,7 +77,8 @@ Secrets are never in the repository or in the chart; the chart only refers to th
 | `postgres-credentials` | `scripts/create-secrets.sh` (once, generated; it is never rotated by the script because that would lock out the existing volume) | database user, password, URL |
 | `poller-config` | `scripts/create-secrets.sh` | `SEC_USER_AGENT` |
 | `hf-read-token` | `scripts/create-hf-secret.sh` | a Hugging Face read token, only needed to run a private fine-tuned model (set `secrets.hfToken=""` to run without it) |
-| `grafana-admin`, `grafana-db` (namespace `monitoring`) | `scripts/create-monitoring-secrets.sh` | generated Grafana admin password and the password of the read-only database role `grafana_ro` |
+| `grafana-datasource` | `scripts/create-grafana-datasource.sh` (`make grafana-datasource`; the password is generated once and reused on later runs) | Grafana's Postgres datasource (uid `tickertape-pg`) with the password of the read-only database role `grafana_ro`. Labelled `grafana_datasource=1`, so the monitoring stack's Grafana loads it from this namespace |
+| `grafana-admin` (namespace `monitoring`) | `scripts/create-monitoring-secrets.sh` | generated Grafana admin password |
 | `alertmanager-discord` (namespace `monitoring`) | `scripts/create-monitoring-secrets.sh`, from the env var `DISCORD_WEBHOOK_URL` | the Discord webhook URL that alerts are sent to (anyone with it can post in the channel, so treat it as a secret) |
 
 For a token, avoid shell history and the process list:
@@ -121,6 +122,7 @@ Reprocessing runs at the model's speed (around 17 s per item on the reference no
 ## Monitoring and dashboards
 
 - The dashboards are part of the chart (`templates/dashboards.yaml`, switch `dashboards.enabled`): one ConfigMap per dashboard in `tickertape`, labelled `grafana_dashboard=1` and annotated `grafana_folder: tickertape`. Grafana's sidecar watches the namespaces listed in `k8s/monitoring/values.yaml` (`sidecar.dashboards.searchNamespace`) and picks up changes within a minute, into a folder per project. To change a dashboard: edit `grafana/gen_dashboards.py`, run `make dashboards`, and release and deploy the chart as usual. No admin access is needed. Every dashboard's `uid` (set in `gen_dashboards.py`, `tickertape-*`) must be unique across all the ConfigMaps Grafana watches, in every project: if two share a uid, Grafana shows only one of them and stops applying dashboard changes from the sidecar (a warning "the same UID is used more than once" in the Grafana log) until the duplicate is gone.
+- The Postgres datasource (uid `tickertape-pg`) comes from this namespace too: Secret `grafana-datasource`, labelled `grafana_datasource=1`, made by `make grafana-datasource` (a Secret, not part of the chart, because it holds a password). Grafana's datasource sidecar watches the same namespace list (`sidecar.datasources.searchNamespace`). Grafana reads the database as `grafana_ro`: read-only, `SELECT` on `items`, `decisions` and `feed_state` only, queries stopped after 15 seconds. A datasource uid must be provided in one place only, so the monitoring values define none for this project.
 - Check every panel against the live Grafana: `GRAFANA_URL=http://<node>:30004 make verify-dashboards`.
 - Prometheus is internal only. It keeps 365 days of history, capped at 5 GB on a 6 Gi volume, which works because the scrape set is trimmed. Watch `prometheus_tsdb_storage_blocks_bytes`; local-path volumes cannot be resized, so growing it means a new volume.
 - Postgres-backed panels are not limited by Prometheus retention (items are kept forever).

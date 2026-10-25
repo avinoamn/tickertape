@@ -103,8 +103,8 @@ grafana:
   defaultDashboardsTimezone: browser
   # Access model (decided by Claude, user delegated): anyone on the LAN/Tailscale can VIEW dashboards without a login
   # (same as the ner and laya UIs, no per-device setup); changing anything needs the admin login. Never expose it to
-  # the internet. Admin credentials live in Secret `grafana-admin` and the DB password in `grafana-db`
-  # (both created by scripts/create-monitoring-secrets.sh, never in the repo).
+  # the internet. Admin credentials live in Secret `grafana-admin` (created by scripts/create-monitoring-secrets.sh,
+  # never in the repo).
   grafana.ini:
     auth.anonymous:
       enabled: true
@@ -113,7 +113,6 @@ grafana:
     existingSecret: grafana-admin
     userKey: admin-user
     passwordKey: admin-password
-  envFromSecret: grafana-db          # provides GRAFANA_PG_PASSWORD
   serviceMonitor: {enabled: false}   # Grafana's own metrics (5k series) are not used
   persistence: {enabled: false}      # dashboards and datasources are all provisioned; nothing to keep
   service:
@@ -127,10 +126,11 @@ grafana:
   resources:
     requests: {cpu: 50m, memory: 192Mi}
     limits: {memory: 512Mi}
-  # The sidecars load dashboards and datasources from labelled ConfigMaps (and Secrets, for datasources). Each project
-  # ships its own from its namespace (tickertape: charts/tickertape/templates/dashboards.yaml), so the sidecars watch
-  # an explicit list of namespaces, never ALL: only namespaces listed here can add dashboards or datasources.
-  # Each project's dashboards go into their own folder, named by the grafana_folder annotation.
+  # The sidecars load dashboards and datasources from labelled ConfigMaps and Secrets. Each project ships its own from
+  # its namespace, so the sidecars watch an explicit list of namespaces, never ALL: only namespaces listed here can add
+  # dashboards or datasources. Each project's dashboards go into their own folder, named by the grafana_folder
+  # annotation. Datasources carry passwords, so projects provide them as Secrets labelled grafana_datasource=1.
+  # The only datasources defined here are the chart's own: Prometheus (uid `prometheus`) and Alertmanager.
   sidecar:
     resources:
       requests: {cpu: 10m, memory: 48Mi}
@@ -144,18 +144,3 @@ grafana:
         foldersFromFilesStructure: true
     datasources:
       searchNamespace: [monitoring, tickertape]
-  additionalDataSources:             # the Prometheus datasource (uid `prometheus`) is added by the chart
-    - name: tickertape-pg
-      uid: tickertape-pg
-      type: postgres
-      access: proxy
-      url: postgres.tickertape.svc.cluster.local:5432
-      user: grafana_ro               # read-only role, see scripts/create-monitoring-secrets.sh
-      database: tickertape
-      jsonData:
-        database: tickertape
-        sslmode: disable
-        postgresVersion: 1600
-        timescaledb: false
-      secureJsonData:
-        password: $GRAFANA_PG_PASSWORD

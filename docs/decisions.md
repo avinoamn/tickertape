@@ -60,7 +60,7 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **Prometheus keeps 365 days with a trimmed scrape set.** The default scrape set produced 86,000 series, which would have filled the volume in about ten days; the dashboards use about 5,000. Postgres-backed panels were never limited by retention.
 
-**Grafana allows anonymous viewing, with an admin login for changes, and reads Postgres through a read-only role.** Viewing should not need a login on a private network, and a dashboard cannot modify data.
+**Grafana allows anonymous viewing, with an admin login for changes, and reads Postgres through a read-only role.** Viewing should not need a login on a private network, and a dashboard cannot modify data. The role and its datasource belong to the project, not to the monitoring stack: `scripts/create-grafana-datasource.sh` runs as the namespace-scoped deploy account and stores the datasource in a labelled Secret in `tickertape`, which Grafana's sidecar loads. At first both lived in the monitoring stack's values and an admin Secret in `monitoring`, so the shared stack could not be installed without knowing about this project, and each new project with a database would have needed another edit to it.
 
 **Dashboards are generated from code (`grafana/gen_dashboards.py`) and shipped as labelled ConfigMaps.** Hand-edited JSON drifts and cannot be reviewed; generated output can be checked by a script that runs every query.
 
