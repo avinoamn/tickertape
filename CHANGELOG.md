@@ -4,10 +4,12 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## chart 0.5.0 - 2026-10-25
+
 ### Added
 
-- chart: the Grafana dashboards are part of the chart (`dashboards.enabled`, `dashboards.folder`). There is one ConfigMap per dashboard, `grafana-dashboard-<name>`, in the release namespace, labelled `grafana_dashboard: "1"` and annotated `grafana_folder: tickertape`. They no longer need an admin script (`scripts/apply-dashboards.sh` is removed). They render whether or not the Prometheus Operator is installed.
-- Upgrading only adds the four ConfigMaps: no pod restarts. The monitoring stack's Grafana must watch the namespace (`sidecar.dashboards.searchNamespace` in `k8s/monitoring/values.yaml`; kube-prometheus-stack's default watches all namespaces). To get the per-project folder, upgrade the monitoring stack first (`make monitoring-install`). Then delete the old `dashboard-*` ConfigMaps in `monitoring`, or each dashboard is loaded twice.
+- The Grafana dashboards are part of the chart (`dashboards.enabled`, `dashboards.folder`). There is one ConfigMap per dashboard, `grafana-dashboard-<name>`, in the release namespace, labelled `grafana_dashboard: "1"` and annotated `grafana_folder: tickertape`. They no longer need an admin script (`scripts/apply-dashboards.sh` is removed). They render whether or not the Prometheus Operator is installed.
+- Upgrading from 0.4.0 only adds the four ConfigMaps: no spec of an existing object changes and no pod restarts. The monitoring stack's Grafana must watch the namespace (`sidecar.dashboards.searchNamespace` in `k8s/monitoring/values.yaml`; kube-prometheus-stack's default watches all namespaces). To get the per-project folder, upgrade the monitoring stack first (`make monitoring-install`). Then delete the old `dashboard-*` ConfigMaps in `monitoring`, or each dashboard is loaded twice.
 
 ## chart 0.4.0 - 2026-10-04
 
