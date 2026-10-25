@@ -71,8 +71,8 @@ jobs:
       - name: Regenerate and compare
         run: |
           python grafana/gen_dashboards.py
-          git diff --exit-code -- grafana/dashboards \
-            || { echo "::error::grafana/dashboards is out of date: run 'make dashboards' and commit the result"; exit 1; }
+          git diff --exit-code -- charts/tickertape/dashboards \
+            || { echo "::error::charts/tickertape/dashboards is out of date: run 'make dashboards' and commit the result"; exit 1; }
 
   manifests:
     name: Helm chart and manifests

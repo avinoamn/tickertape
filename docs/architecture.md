@@ -93,7 +93,7 @@ Each answer comes with a probability per option; the stored `confidence` is the 
 
 ner and laya expose Prometheus metrics on port 8000: `*_items_processed_total`, `*_errors_total`, `*_inference_seconds` and `*_batch_size` histograms, plus `ner_entities_total{label}`, `laya_answers_total{question,answer}` and `laya_confidence{question}`. Each processed item also writes one JSON log line (`ts, svc, item_id, status, ms, error`).
 
-Four Grafana dashboards are generated from `grafana/gen_dashboards.py` (the source of truth) into `grafana/dashboards/*.json` and loaded through labelled ConfigMaps:
+Four Grafana dashboards are generated from `grafana/gen_dashboards.py` (the source of truth) into `charts/tickertape/dashboards/*.json`. The chart ships each one as a ConfigMap labelled `grafana_dashboard=1` in the `tickertape` namespace, and Grafana's sidecar loads them into a `tickertape` folder:
 
 - **Poller**: items ingested per hour and source, feed freshness and ingest lag, data quality, job health (from kube-state-metrics), latest items.
 - **NER**: throughput, latency percentiles, errors, entities by label, share of items with a focus ticker.

@@ -2,6 +2,7 @@
 
 They render the chart with `helm template`, so they are skipped when helm is not installed (CI installs it).
 """
+import json
 import shutil
 import subprocess
 
@@ -78,3 +79,30 @@ def test_alerts_can_be_turned_off_and_need_the_operator_crds():
     assert not [d for d in render("--set", "alerts.enabled=false") if d["kind"] == "PrometheusRule"]
     out = subprocess.run(["helm", "template", "tickertape", str(CHART), "-n", "tickertape"], check=True, capture_output=True, text=True).stdout
     assert "PrometheusRule" not in out
+
+
+def dashboard_maps(*args):
+    return {d["metadata"]["name"]: d for d in render(*args) if d["kind"] == "ConfigMap" and d["metadata"]["name"].startswith("grafana-dashboard-")}
+
+
+def test_every_dashboard_file_is_shipped_as_a_labelled_configmap():
+    """The Grafana sidecar loads ConfigMaps by label and files them by the folder annotation; a dashboard that is not
+    rendered, or rendered without the label, silently disappears from Grafana."""
+    files = sorted(p.stem for p in (CHART / "dashboards").glob("*.json"))
+    assert files, "no dashboards in the chart"
+    maps = dashboard_maps()
+    assert sorted(maps) == [f"grafana-dashboard-{f}" for f in files]
+    for f in files:
+        cm = maps[f"grafana-dashboard-{f}"]
+        assert cm["metadata"]["labels"]["grafana_dashboard"] == "1"
+        assert cm["metadata"]["annotations"]["grafana_folder"] == "tickertape"
+        body = cm["data"][f"{f}.json"]
+        assert json.loads(body) == json.loads((CHART / "dashboards" / f"{f}.json").read_text())
+        assert len(body.encode()) < 900_000, "a ConfigMap holds at most 1 MiB"
+
+
+def test_dashboards_do_not_need_the_operator_and_can_be_turned_off():
+    out = subprocess.run(["helm", "template", "tickertape", str(CHART), "-n", "tickertape"], check=True, capture_output=True, text=True).stdout
+    assert "grafana-dashboard-pipeline" in out
+    assert not dashboard_maps("--set", "dashboards.enabled=false")
+    assert dashboard_maps("--set", "dashboards.folder=other")["grafana-dashboard-ner"]["metadata"]["annotations"]["grafana_folder"] == "other"

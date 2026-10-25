@@ -40,7 +40,7 @@ docker compose exec db psql -U tickertape -c "select status, count(*) from items
 - Dependencies are pinned in each service's `requirements.txt`. torch is installed from the CPU wheel index.
 - All configuration comes from environment variables; secrets never go in the repository.
 - Files use LF line endings (`.gitattributes`).
-- `grafana/gen_dashboards.py` is the source of truth for the dashboards. Edit it, run `make dashboards`, and commit the generated JSON.
+- `grafana/gen_dashboards.py` is the source of truth for the dashboards. Edit it, run `make dashboards`, and commit the generated JSON (`charts/tickertape/dashboards/`). The chart ships it, so a dashboard change reaches the cluster with the next chart release.
 
 ## Checking your changes
 
@@ -49,7 +49,7 @@ make lint                       # ruff, in a python:3.12 container
 make test                       # pytest, in a python:3.12 container, against the dev database (make dev-up)
 make chart-check                # helm lint + render + kubeconform, in containers
 make backup-test                # the backup / restore-test scripts end to end, against a throw-away Postgres (Docker only)
-make dashboards                 # regenerate grafana/dashboards/*.json
+make dashboards                 # regenerate charts/tickertape/dashboards/*.json
 docker compose --profile monitoring up -d
 make verify-dashboards          # runs every panel query against the local Grafana and reports errors / empty panels
 ```

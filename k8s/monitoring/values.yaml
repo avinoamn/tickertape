@@ -99,7 +99,7 @@ prometheus:
           resources: {requests: {storage: 6Gi}}
 
 grafana:
-  defaultDashboardsEnabled: false   # only our four dashboards
+  defaultDashboardsEnabled: false   # only the projects' own dashboards (see sidecar below)
   defaultDashboardsTimezone: browser
   # Access model (decided by Claude, user delegated): anyone on the LAN/Tailscale can VIEW dashboards without a login
   # (same as the ner and laya UIs, no per-device setup); changing anything needs the admin login. Never expose it to
@@ -127,6 +127,10 @@ grafana:
   resources:
     requests: {cpu: 50m, memory: 192Mi}
     limits: {memory: 512Mi}
+  # The sidecars load dashboards and datasources from labelled ConfigMaps (and Secrets, for datasources). Each project
+  # ships its own from its namespace (tickertape: charts/tickertape/templates/dashboards.yaml), so the sidecars watch
+  # an explicit list of namespaces, never ALL: only namespaces listed here can add dashboards or datasources.
+  # Each project's dashboards go into their own folder, named by the grafana_folder annotation.
   sidecar:
     resources:
       requests: {cpu: 10m, memory: 48Mi}
@@ -134,6 +138,12 @@ grafana:
     dashboards:
       label: grafana_dashboard
       labelValue: "1"
+      searchNamespace: [monitoring, tickertape]
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
+    datasources:
+      searchNamespace: [monitoring, tickertape]
   additionalDataSources:             # the Prometheus datasource (uid `prometheus`) is added by the chart
     - name: tickertape-pg
       uid: tickertape-pg

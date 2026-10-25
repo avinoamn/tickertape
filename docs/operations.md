@@ -23,7 +23,7 @@ The deployer kubeconfig is written to `~/.kube/tickertape` and contains a long-l
 
 ## The Helm chart
 
-Everything in the `tickertape` namespace except the namespace, RBAC and Secrets is one Helm chart, `charts/tickertape`: Postgres (StatefulSet and volume), the schema (a ConfigMap applied by a hook Job after every install and upgrade), the poller CronJob, ner and laya (Deployments, cache volumes, ClusterIP and NodePort Services), the Ingresses and the ServiceMonitors. Settings live in `charts/tickertape/values.yaml`: image repositories and tags, the Laya model and revision, resources, NodePorts, ingress hosts and the Secret names. The kube-prometheus-stack is a separate release (below).
+Everything in the `tickertape` namespace except the namespace, RBAC and Secrets is one Helm chart, `charts/tickertape`: Postgres (StatefulSet and volume), the schema (a ConfigMap applied by a hook Job after every install and upgrade), the poller CronJob, ner and laya (Deployments, cache volumes, ClusterIP and NodePort Services), the Ingresses, the ServiceMonitors and alert rules, and the Grafana dashboards. Settings live in `charts/tickertape/values.yaml`: image repositories and tags, the Laya model and revision, resources, NodePorts, ingress hosts and the Secret names. The kube-prometheus-stack is a separate release (below).
 
 Notes on how it behaves:
 
@@ -120,7 +120,7 @@ Reprocessing runs at the model's speed (around 17 s per item on the reference no
 
 ## Monitoring and dashboards
 
-- Dashboards are provisioned from ConfigMaps labelled `grafana_dashboard=1`. After editing `grafana/gen_dashboards.py` run `make dashboards`, then `scripts/apply-dashboards.sh` (admin) to publish; Grafana picks them up within a minute.
+- The dashboards are part of the chart (`templates/dashboards.yaml`, switch `dashboards.enabled`): one ConfigMap per dashboard in `tickertape`, labelled `grafana_dashboard=1` and annotated `grafana_folder: tickertape`. Grafana's sidecar watches the namespaces listed in `k8s/monitoring/values.yaml` (`sidecar.dashboards.searchNamespace`) and picks up changes within a minute, into a folder per project. To change a dashboard: edit `grafana/gen_dashboards.py`, run `make dashboards`, and release and deploy the chart as usual. No admin access is needed.
 - Check every panel against the live Grafana: `GRAFANA_URL=http://<node>:30004 make verify-dashboards`.
 - Prometheus is internal only. It keeps 365 days of history, capped at 5 GB on a 6 Gi volume, which works because the scrape set is trimmed. Watch `prometheus_tsdb_storage_blocks_bytes`; local-path volumes cannot be resized, so growing it means a new volume.
 - Postgres-backed panels are not limited by Prometheus retention (items are kept forever).
