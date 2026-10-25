@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Step 4, part 2 (CHANGES CLUSTER STATE: ask first). Installs/upgrades kube-prometheus-stack in namespace `monitoring`
-# with Helm on computa (over SSH, admin kubeconfig), then the dashboards.
+# with Helm on computa (over SSH, admin kubeconfig). The dashboards are not installed here: they are part of the
+# tickertape chart (charts/tickertape/templates/dashboards.yaml), and Grafana picks them up from namespace tickertape.
 # Prereq: scripts/create-monitoring-secrets.sh. Heavy for a 4-core Celeron: run when laya's backlog is drained.
 #   scripts/install-monitoring.sh
 set -euo pipefail
@@ -15,5 +16,4 @@ ssh computa "export KUBECONFIG=~/.kube/config; helm upgrade --install kps kube-p
 # The ServiceMonitors for ner and laya belong to the tickertape chart. They are only rendered when the CRDs exist, so if the
 # chart was installed before this stack, run scripts/deploy.sh again to create them.
 
-"$root/scripts/apply-dashboards.sh"
 echo "installed. Grafana: http://computa:30004 (user admin; password: see scripts/create-monitoring-secrets.sh output)"

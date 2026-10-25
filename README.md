@@ -83,9 +83,9 @@ Each service (`poller`, `ner`, `laya`) and the Helm chart has its own SemVer ver
 |---|---|
 | `services/poller`, `services/ner`, `services/laya` | The three services, each with its own `Dockerfile` and pinned `requirements.txt` |
 | `common/` | Shared code: database helpers (claim and retry logic) and JSON logging |
-| `charts/tickertape/` | The Helm chart: Postgres, poller, ner, laya, services, ingress, ServiceMonitors, and the idempotent schema (`files/schema.sql`: `items`, `decisions`, `feed_state`) |
+| `charts/tickertape/` | The Helm chart: Postgres, poller, ner, laya, services, ingress, ServiceMonitors, alert rules, the Grafana dashboards (`dashboards/*.json`, generated), and the idempotent schema (`files/schema.sql`: `items`, `decisions`, `feed_state`) |
 | `k8s/` | Namespace and deploy-identity RBAC (applied once by an admin), and the monitoring Helm values |
-| `grafana/` | Dashboard generator (`gen_dashboards.py` is the source of truth), generated JSON, and a checker that runs every panel query |
+| `grafana/` | Dashboard generator (`gen_dashboards.py` is the source of truth; it writes into the chart), a checker that runs every panel query, and the local Grafana test rig |
 | `training/` | Dataset building, labelling rubric, fine-tuning script and notebook, evaluation, and reports |
 | `scripts/`, `Makefile` | Build, deploy and operations helpers (`make help` lists them) |
 | `docs/` | Architecture, development, operations, releasing, model, and decisions |

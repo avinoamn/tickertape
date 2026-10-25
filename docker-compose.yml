@@ -88,7 +88,7 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
     volumes:
       - ./grafana/dev/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./charts/tickertape/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       - "127.0.0.1:3000:3000"
 

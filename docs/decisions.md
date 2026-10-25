@@ -64,6 +64,8 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **Dashboards are generated from code (`grafana/gen_dashboards.py`) and shipped as labelled ConfigMaps.** Hand-edited JSON drifts and cannot be reviewed; generated output can be checked by a script that runs every query.
 
+**The dashboards are part of the chart, in the project's own namespace.** At first an admin script wrote them into the `monitoring` namespace, so every dashboard change needed cluster-admin access and was not part of any release. Now they are versioned and deployed like the alert rules, by the namespace-scoped deploy account, and a chart version names the dashboards that match its metrics. Grafana's sidecar watches an explicit list of namespaces, not all of them (kube-prometheus-stack's default), because the monitoring stack is meant to be shared by several projects and only onboarded namespaces should be able to add dashboards. Each project gets its own Grafana folder (the `grafana_folder` annotation).
+
 ## Testing and CI
 
 **Database tests run against a real Postgres, in a throw-away schema per test.** The queue's guarantees (`SKIP LOCKED`, the retry rule, idempotent schema, upserts) are properties of the SQL, so a mock would only test itself. A schema per test makes it safe to point the suite at a dev database, and CI uses a Postgres service container.

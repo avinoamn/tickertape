@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Generate grafana/dashboards/{poller,ner,laya,pipeline}.json. Plain stdlib, runs on any Python 3.
+"""Generate charts/tickertape/dashboards/{poller,ner,laya,pipeline}.json. Plain stdlib, runs on any Python 3.
 
     python grafana/gen_dashboards.py
 
-Edit the panels here, regenerate, then apply with scripts/apply-dashboards.sh. Datasource uids match the provisioning
-in k8s/monitoring/values.yaml (and grafana/dev/ for the local test rig): Prometheus `prometheus`, Postgres `tickertape-pg`.
+Edit the panels here, regenerate, and commit the JSON: the chart ships it as ConfigMaps (templates/dashboards.yaml),
+so a dashboard change reaches the cluster with the next chart release. The output lives inside the chart because Helm
+cannot read files outside it. Datasource uids match the provisioning in k8s/monitoring/values.yaml (and grafana/dev/ for
+the local test rig): Prometheus `prometheus`, Postgres `tickertape-pg`.
 """
 import json
 import os
 
 PG = {"type": "grafana-postgresql-datasource", "uid": "tickertape-pg"}
 PROM = {"type": "prometheus", "uid": "prometheus"}
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboards")
+OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "charts", "tickertape", "dashboards")
 
 GREEN, YELLOW, RED, BLUE = "green", "#EAB839", "red", "blue"
 

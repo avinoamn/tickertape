@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run every query of every dashboard in grafana/dashboards through a live Grafana (/api/ds/query) and report
+"""Run every query of every dashboard in charts/tickertape/dashboards through a live Grafana (/api/ds/query) and report
 errors and row counts per panel. Stdlib only.
 
     python grafana/verify_dashboards.py                       # local rig: http://localhost:3000 (anonymous admin)
@@ -19,6 +19,7 @@ URL = os.environ.get("GRAFANA_URL", "http://localhost:3000").rstrip("/")
 USER, PASSWORD = os.environ.get("GRAFANA_USER"), os.environ.get("GRAFANA_PASSWORD")
 RANGE = os.environ.get("VERIFY_RANGE", "now-24h")
 HERE = os.path.dirname(os.path.abspath(__file__))
+DASHBOARDS = os.path.join(os.path.dirname(HERE), "charts", "tickertape", "dashboards")
 
 
 def post(path, body):
@@ -59,7 +60,7 @@ def run_target(t, question):
 
 def main():
     failed = 0
-    for path in sorted(glob.glob(os.path.join(HERE, "dashboards", "*.json"))):
+    for path in sorted(glob.glob(os.path.join(DASHBOARDS, "*.json"))):
         dash = json.load(open(path))
         print("\n== %s (%s)" % (dash["title"], os.path.basename(path)))
         for p in dash["panels"]:

@@ -28,10 +28,10 @@ help:
 	@echo "make backup-pull              copy a fresh, verified dump of the cluster database to this machine (read-only on the cluster)"
 	@echo "make chart-check              helm lint + template (several value sets) + kubeconform, in containers"
 	@echo "make lint | test               ruff and pytest in a python:3.12 container (test uses the dev DB from make dev-up in a throw-away schema)"
-	@echo "make dashboards                      regenerate grafana/dashboards/*.json from grafana/gen_dashboards.py"
+	@echo "make dashboards                      regenerate charts/tickertape/dashboards/*.json from grafana/gen_dashboards.py"
 	@echo "make verify-dashboards              run every dashboard query through a live Grafana (local rig by default)"
 	@echo "make monitoring-secrets             step 4 part 1: namespace, Grafana secrets, read-only DB role (CHANGES CLUSTER STATE)"
-	@echo "make monitoring-install             step 4 part 2: Helm kube-prometheus-stack + ServiceMonitors + dashboards (CHANGES CLUSTER STATE)"
+	@echo "make monitoring-install             step 4 part 2: Helm kube-prometheus-stack (CHANGES CLUSTER STATE; the dashboards come with make deploy)"
 	@echo "make status | logs                  read-only look at the tickertape namespace"
 
 bootstrap:
