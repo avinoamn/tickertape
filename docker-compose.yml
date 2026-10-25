@@ -3,7 +3,7 @@
 #   docker compose run --rm --build poller
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: tickertape
       POSTGRES_PASSWORD: dev
