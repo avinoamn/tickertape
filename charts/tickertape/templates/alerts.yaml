@@ -1,6 +1,6 @@
 {{- /* Prometheus alert rules: the pipeline stopped, a model service is down or restarting, a backup failed or is stale.
        Needs the Prometheus Operator CRDs, so it is skipped when they are not installed (see servicemonitors.yaml).
-       Where the alerts go is configured in Alertmanager (k8s/monitoring/values.yaml), not here. */ -}}
+       Where the alerts go is configured in Alertmanager, by the platform (home-lab-infra), not here. */ -}}
 {{- if and .Values.alerts.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

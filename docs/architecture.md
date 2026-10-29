@@ -104,14 +104,14 @@ Four Grafana dashboards are generated from `grafana/gen_dashboards.py` (the sour
 
 ## Kubernetes layout
 
-Everything below is one Helm chart (`charts/tickertape`, see [operations.md](operations.md#the-helm-chart)), except the namespace, RBAC and Secrets and the monitoring stack.
+Everything below is one Helm chart (`charts/tickertape`, see [operations.md](operations.md#the-helm-chart)), except the Secrets. The namespace, the deploy identity and the monitoring stack are the cluster's shared platform, defined in [home-lab-infra](https://github.com/avinoamn/home-lab-infra).
 
 - Postgres: StatefulSet with a 5 Gi `local-path` volume and a Secret for credentials.
 - ner and laya: one replica each, strategy `Recreate` (they each own a ReadWriteOnce volume that caches the Hugging Face models, so two pods must never run at once). Memory limits 2 Gi (ner) and 3.5 Gi (laya); laya is also limited to 2 CPU cores with `OMP_NUM_THREADS=MKL_NUM_THREADS=2`, because uncapped it starved the rest of a 4-core node. Readiness probes use `/metrics`, which only starts after the model has loaded.
-- Services: a ClusterIP Service per workload carries the ports (UI 7860, metrics 8000); every UI also gets its own NodePort Service so it opens from any device on the private network (ner 30002, laya 30003, Grafana 30004). Traefik Ingresses (`ner.local`, `laya.local`, `grafana.local`) are an extra.
-- Deploy identity: a namespace-scoped `deployer` ServiceAccount (`k8s/rbac.yaml`) that can manage workloads in `tickertape` and nothing else.
+- Services: a ClusterIP Service per workload carries the ports (UI 7860, metrics 8000); every UI also gets its own NodePort Service so it opens from any device on the private network (ner 30002, laya 30003; the platform's Grafana is on 30004). Traefik Ingresses (`ner.local`, `laya.local`) are an extra.
+- Deploy identity: a namespace-scoped `deployer` ServiceAccount that can manage workloads in `tickertape` and nothing else. home-lab-infra creates it, with the same permissions for every project.
 - Backups: a daily `pg_dump` CronJob into its own volume (newest 14 kept) and a weekly CronJob that restores the newest dump into a scratch database, fails if backups are stale, and proves the restore works.
-- Monitoring: kube-prometheus-stack in `monitoring`, trimmed to what the dashboards use so 365 days of history fit in a small volume; ServiceMonitors for ner and laya; Grafana reads Postgres through a read-only role. Prometheus alert rules (poller, model services, backups) go through a small Alertmanager to a Discord channel.
+- Monitoring: the platform's shared kube-prometheus-stack in `monitoring`, trimmed to what dashboards and alerts use so 365 days of history fit in a small volume; this chart brings ServiceMonitors for ner and laya; Grafana reads Postgres through a read-only role. Prometheus alert rules (poller, model services, backups) go through a small Alertmanager to a Discord channel.
 
 ## Known limits
 

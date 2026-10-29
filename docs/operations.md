@@ -8,27 +8,45 @@ In the scripts the node is called `computa`: an SSH alias and a hostname you sho
 
 ## Access model
 
+Everything in this repository runs as one namespace-scoped account:
+
 | Tool | Runs as | Use it for |
 |---|---|---|
-| `scripts/kc.sh <kubectl args>` | the `deployer` ServiceAccount, over the API at `https://<node>:6443` | everything day to day: the namespace `tickertape` only |
-| `scripts/kc-admin.sh <kubectl args>` | cluster admin, over SSH on the node | cluster-scoped work only: namespace, RBAC, Helm and CRDs (monitoring) |
+| `scripts/kc.sh <kubectl args>` | the `deployer` ServiceAccount, over the API at `https://<node>:6443` | everything: the namespace `tickertape` only |
+| `scripts/helm.sh <helm args>` | the same account | the Helm release `tickertape` |
 
-`deployer` is created by `make bootstrap` (`k8s/rbac.yaml`) and can manage workloads, services, config, secrets, jobs, ingresses and ServiceMonitors in `tickertape`. It cannot touch other namespaces or cluster-scoped objects, and cannot use the `scale` subresource: to stop or start a Deployment patch its replicas.
+`deployer` can manage workloads, services, config, secrets, jobs, ingresses, ServiceMonitors and PrometheusRules in `tickertape`. It cannot touch other namespaces or cluster-scoped objects, and cannot use the `scale` subresource: to stop or start a Deployment patch its replicas.
 
 ```sh
 scripts/kc.sh patch deployment/laya -n tickertape --type=merge -p '{"spec":{"replicas":0}}'   # stop (1 to start)
 ```
 
-The deployer kubeconfig is written to `~/.kube/tickertape` and contains a long-lived token. Never commit it. To revoke access, delete the Secret `deployer-token` in `tickertape`.
+The kubeconfig is `~/.kube/tickertape` and contains a long-lived token. Never commit it.
+
+**Cluster-wide work happens in [home-lab-infra](https://github.com/avinoamn/home-lab-infra), not here.** That repository creates the namespace, the `deployer` account and its permissions, and writes the kubeconfig (`scripts/write-kubeconfig.sh tickertape`, see its [onboarding.md](https://github.com/avinoamn/home-lab-infra/blob/main/docs/onboarding.md)). It also runs the monitoring stack, owns the Tailscale policy and holds the admin access. Rotating or revoking the deploy token goes through it too ([onboarding.md, "Rotating the token"](https://github.com/avinoamn/home-lab-infra/blob/main/docs/onboarding.md#rotating-the-token)).
+
+## What this project needs from the cluster
+
+The cluster provides these. This repository relies on them and creates none of them. They are part of home-lab-infra's [platform contract](https://github.com/avinoamn/home-lab-infra/blob/main/docs/platform.md).
+
+| Needs | For |
+|---|---|
+| k3s with the `local-path` StorageClass | the Postgres, backup and model-cache volumes |
+| Traefik (bundled with k3s) | the Ingress hosts `ner.local` and `laya.local` |
+| The Prometheus Operator CRDs (from the monitoring stack) | the ServiceMonitors and alert rules. Without the CRDs the chart skips both. |
+| Grafana's sidecars watching the `tickertape` namespace | the dashboards (ConfigMaps) and the Postgres datasource (a Secret) |
+| Alertmanager with a Discord receiver | delivering the alert rules |
+| The namespace `tickertape` and its `deployer` account | every deploy and every script here |
+| The NodePorts 30002 (ner) and 30003 (laya) | the UIs, assigned to this project in the platform's registry |
 
 ## The Helm chart
 
-Everything in the `tickertape` namespace except the namespace, RBAC and Secrets is one Helm chart, `charts/tickertape`: Postgres (StatefulSet and volume), the schema (a ConfigMap applied by a hook Job after every install and upgrade), the poller CronJob, ner and laya (Deployments, cache volumes, ClusterIP and NodePort Services), the Ingresses, the ServiceMonitors and alert rules, and the Grafana dashboards. Settings live in `charts/tickertape/values.yaml`: image repositories and tags, the Laya model and revision, resources, NodePorts, ingress hosts and the Secret names. The kube-prometheus-stack is a separate release (below).
+Everything in the `tickertape` namespace except the namespace, RBAC and Secrets is one Helm chart, `charts/tickertape`: Postgres (StatefulSet and volume), the schema (a ConfigMap applied by a hook Job after every install and upgrade), the poller CronJob, ner and laya (Deployments, cache volumes, ClusterIP and NodePort Services), the Ingresses, the ServiceMonitors and alert rules, and the Grafana dashboards. Settings live in `charts/tickertape/values.yaml`: image repositories and tags, the Laya model and revision, resources, NodePorts, ingress hosts and the Secret names. The monitoring stack is the platform's, not part of this chart.
 
 Notes on how it behaves:
 
 - Resource names are fixed (`postgres`, `ner`, `laya`, ...), so install one release per namespace.
-- The ServiceMonitors are only created when the Prometheus Operator CRDs exist. Install the monitoring stack first, or run the deploy again afterwards.
+- The ServiceMonitors are only created when the Prometheus Operator CRDs exist. On a new cluster, the platform installs the monitoring stack first; otherwise run the deploy again afterwards.
 - Pod templates carry only the label `app: <name>`, on purpose: changing a pod template restarts the pod, and ner and laya reload their model on every start. The common labels are on object metadata.
 - The chart never creates or deletes Secrets, and Helm does not delete the Postgres volume claim (it belongs to the StatefulSet, not to the release).
 
@@ -40,17 +58,14 @@ make chart-check
 
 ## First-time setup
 
-1. **Bootstrap access** (admin step, once): `make bootstrap` creates the namespace, the RBAC and `~/.kube/tickertape`.
+1. **The project is onboarded in [home-lab-infra](https://github.com/avinoamn/home-lab-infra)** (an admin step there, once, [its onboarding.md](https://github.com/avinoamn/home-lab-infra/blob/main/docs/onboarding.md)): that creates the namespace, the `deployer` account and `~/.kube/tickertape`, and has Grafana watch the namespace. The monitoring stack is set up there too.
 2. **Images.** Nothing to do for released versions: the chart pins public images on GHCR (`ghcr.io/avinoamn/tickertape-<svc>`), which the node pulls itself. To run unreleased code, build and import a local image and point the chart at it (see "Releasing a new version of a service" below).
 3. **Deploy:** `SEC_USER_AGENT="Your Name you@example.com" make deploy`. It creates the Secrets (below) and runs `helm upgrade --install tickertape charts/tickertape --atomic` as the `deployer` ServiceAccount (`scripts/helm.sh`). `--atomic` waits until everything is ready and rolls back if the release fails. The first start of ner and laya downloads their models into a volume (allow several minutes). Extra Helm arguments go in `HELM_ARGS`, for example `make deploy HELM_ARGS="--set laya.image.tag=0.1.2"`.
 4. **Check:** `make status`, `scripts/helm.sh status tickertape`, then open `http://<node>:30002` (ner) and `http://<node>:30003` (laya), and trigger a poll without waiting for the schedule:
    ```sh
    scripts/kc.sh create job poller-manual-$(date +%s) --from=cronjob/poller -n tickertape
    ```
-5. **Monitoring** (optional, admin): create a Discord webhook for alerts (channel settings, Integrations, Webhooks) and put it in the environment as `DISCORD_WEBHOOK_URL` without echoing it, then run `make monitoring-secrets` and `make monitoring-install` (Helm release `kps`, chart pinned in `scripts/install-monitoring.sh`, values in `k8s/monitoring/values.yaml`). Then `make grafana-datasource` (as the `deployer`, after the first deploy because it needs the database) creates the read-only database role `grafana_ro` and the Postgres datasource that the dashboards use. Grafana is at `http://<node>:30004`: anonymous viewing, admin login for changes. The admin password is generated in the cluster:
-   ```sh
-   scripts/kc-admin.sh get secret grafana-admin -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d
-   ```
+5. **The dashboards' database:** `make grafana-datasource` (as the `deployer`, after the first deploy because it needs the database) creates the read-only database role `grafana_ro` and the Postgres datasource that the dashboards use. Grafana is at `http://<node>:30004`: anonymous viewing, with an admin login for changes that the platform holds.
 
 ### Adopting an install that was made with `kubectl apply`
 
@@ -78,8 +93,6 @@ Secrets are never in the repository or in the chart; the chart only refers to th
 | `poller-config` | `scripts/create-secrets.sh` | `SEC_USER_AGENT` |
 | `hf-read-token` | `scripts/create-hf-secret.sh` | a Hugging Face read token, only needed to run a private fine-tuned model (set `secrets.hfToken=""` to run without it) |
 | `grafana-datasource` | `scripts/create-grafana-datasource.sh` (`make grafana-datasource`; the password is generated once and reused on later runs) | Grafana's Postgres datasource (uid `tickertape-pg`) with the password of the read-only database role `grafana_ro`. Labelled `grafana_datasource=1`, so the monitoring stack's Grafana loads it from this namespace |
-| `grafana-admin` (namespace `monitoring`) | `scripts/create-monitoring-secrets.sh` | generated Grafana admin password |
-| `alertmanager-discord` (namespace `monitoring`) | `scripts/create-monitoring-secrets.sh`, from the env var `DISCORD_WEBHOOK_URL` | the Discord webhook URL that alerts are sent to (anyone with it can post in the channel, so treat it as a secret) |
 
 For a token, avoid shell history and the process list:
 
@@ -121,15 +134,15 @@ Reprocessing runs at the model's speed (around 17 s per item on the reference no
 
 ## Monitoring and dashboards
 
-- The dashboards are part of the chart (`templates/dashboards.yaml`, switch `dashboards.enabled`): one ConfigMap per dashboard in `tickertape`, labelled `grafana_dashboard=1` and annotated `grafana_folder: tickertape`. Grafana's sidecar watches the namespaces listed in `k8s/monitoring/values.yaml` (`sidecar.dashboards.searchNamespace`) and picks up changes within a minute, into a folder per project. To change a dashboard: edit `grafana/gen_dashboards.py`, run `make dashboards`, and release and deploy the chart as usual. No admin access is needed. Every dashboard's `uid` (set in `gen_dashboards.py`, `tickertape-*`) must be unique across all the ConfigMaps Grafana watches, in every project: if two share a uid, Grafana shows only one of them and stops applying dashboard changes from the sidecar (a warning "the same UID is used more than once" in the Grafana log) until the duplicate is gone.
-- The Postgres datasource (uid `tickertape-pg`) comes from this namespace too: Secret `grafana-datasource`, labelled `grafana_datasource=1`, made by `make grafana-datasource` (a Secret, not part of the chart, because it holds a password). Grafana's datasource sidecar watches the same namespace list (`sidecar.datasources.searchNamespace`). Grafana reads the database as `grafana_ro`: read-only, `SELECT` on `items`, `decisions` and `feed_state` only, queries stopped after 15 seconds. A datasource uid must be provided in one place only, so the monitoring values define none for this project.
+- The dashboards are part of the chart (`templates/dashboards.yaml`, switch `dashboards.enabled`): one ConfigMap per dashboard in `tickertape`, labelled `grafana_dashboard=1` and annotated `grafana_folder: tickertape`. Grafana's sidecar watches the namespaces of the projects onboarded with `grafana: true` (home-lab-infra's `projects/projects.yaml`) and picks up changes within a minute, into a folder per project. To change a dashboard: edit `grafana/gen_dashboards.py`, run `make dashboards`, and release and deploy the chart as usual. No admin access is needed. Every dashboard's `uid` (set in `gen_dashboards.py`, `tickertape-*`) must be unique across all the ConfigMaps Grafana watches, in every project: if two share a uid, Grafana shows only one of them and stops applying dashboard changes from the sidecar (a warning "the same UID is used more than once" in the Grafana log) until the duplicate is gone.
+- The Postgres datasource (uid `tickertape-pg`) comes from this namespace too: Secret `grafana-datasource`, labelled `grafana_datasource=1`, made by `make grafana-datasource` (a Secret, not part of the chart, because it holds a password). Grafana's datasource sidecar watches the same namespaces. Grafana reads the database as `grafana_ro`: read-only, `SELECT` on `items`, `decisions` and `feed_state` only, queries stopped after 15 seconds. A datasource uid must be provided in one place only, so the platform's monitoring values define none for this project.
 - Check every panel against the live Grafana: `GRAFANA_URL=http://<node>:30004 make verify-dashboards`.
-- Prometheus is internal only. It keeps 365 days of history, capped at 5 GB on a 6 Gi volume, which works because the scrape set is trimmed. Watch `prometheus_tsdb_storage_blocks_bytes`; local-path volumes cannot be resized, so growing it means a new volume.
+- Prometheus (the platform's) is internal only. It keeps 365 days of history, capped at 5 GB, which works because it stores only the series some dashboard or alert uses. A new panel that needs a platform metric that is not kept (for example from kube-state-metrics) needs it added in home-lab-infra first.
 - Postgres-backed panels are not limited by Prometheus retention (items are kept forever).
 
 ### Alerts
 
-Without alerts a stopped pipeline is only noticed by looking at a dashboard. The chart defines Prometheus rules (`charts/tickertape/templates/alerts.yaml`, switch `alerts.enabled`), Prometheus evaluates them, and Alertmanager (part of the `kps` release, one small pod) sends them to a Discord channel through the webhook in Secret `alertmanager-discord`. A message is sent when an alert starts and again when it resolves, and a still-firing alert is repeated every 12 hours.
+Without alerts a stopped pipeline is only noticed by looking at a dashboard. The chart defines Prometheus rules (`charts/tickertape/templates/alerts.yaml`, switch `alerts.enabled`), Prometheus evaluates them, and the platform's Alertmanager sends them to a Discord channel that every project shares, grouped by alert name and namespace so each message names the project. Where alerts go is set up in home-lab-infra, not here. A message is sent when an alert starts and again when it resolves, and a still-firing alert is repeated every 12 hours.
 
 | Alert | Fires when | Severity |
 |---|---|---|
@@ -143,9 +156,9 @@ Without alerts a stopped pipeline is only noticed by looking at a dashboard. The
 | `BackupStale` | no successful backup for `backup.restoreTest.maxAgeHours` (36) hours | critical |
 | `RestoreTestStale` | the weekly restore test has not passed for `alerts.restoreTestMaxAgeDays` (9) days | warning |
 
-Not covered yet: a growing backlog of unprocessed items and rising error counters (see the issues). Look at what is firing (read-only) through Prometheus's or Alertmanager's API, with `scripts/kc-admin.sh port-forward -n monitoring svc/kps-kube-prometheus-stack-alertmanager 9093`, or in the Alertmanager page of that port. To test the channel after installing, send a throw-away alert from that port-forward: `curl -XPOST localhost:9093/api/v2/alerts -H 'Content-Type: application/json' -d '[{"labels":{"alertname":"TestAlert","severity":"info"}}]'`.
+Not covered yet: a growing backlog of unprocessed items and rising error counters (see the issues). To see what is firing, or to send a test alert to the channel, use Prometheus's and Alertmanager's own pages, which need admin access: home-lab-infra's [operations.md](https://github.com/avinoamn/home-lab-infra/blob/main/docs/operations.md), "Looking at Prometheus and Alertmanager" and "Checking that it works".
 
-The rules are checked in CI by rendering the chart (`tests/test_chart.py`); the expressions themselves can be checked with `promtool check rules` after rendering. Applying them to a cluster needs the `deployer` to be allowed `prometheusrules` (`k8s/rbac.yaml`, re-applied by `make bootstrap`, admin) and the Alertmanager config to be installed with `make monitoring-install`.
+The rules are checked in CI by rendering the chart (`tests/test_chart.py`); the expressions themselves can be checked with `promtool check rules` after rendering. The `deployer` account may manage `prometheusrules` in this namespace (the platform gives every project that permission), so the rules deploy with the chart.
 
 ## Troubleshooting
 

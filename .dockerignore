@@ -6,6 +6,5 @@
 training/data
 docs
 charts
-k8s
 grafana
 *.md

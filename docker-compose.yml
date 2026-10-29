@@ -1,4 +1,4 @@
-# Local dev only. Cluster deploy uses k8s/. Dev credentials below are not secrets.
+# Local dev only. The cluster runs the Helm chart in charts/tickertape. Dev credentials below are not secrets.
 #   docker compose up -d db
 #   docker compose run --rm --build poller
 services:
