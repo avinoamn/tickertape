@@ -72,7 +72,7 @@ jobs:
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           audience: ${{ secrets.TS_AUDIENCE }}
-          tags: tag:ci
+          tags: tag:ci-tickertape
 
       - name: Kubeconfig for the deployer account
         env:
@@ -116,7 +116,7 @@ jobs:
             fi
             sleep 10
           done
-          echo "::error::cannot reach the cluster API through the tailnet. Check the Tailscale policy (tag:ci may reach the API port) and KUBE_SERVER."
+          echo "::error::cannot reach the cluster API through the tailnet. Check the Tailscale policy (tag:ci-tickertape may reach the API port, in home-lab-infra) and KUBE_SERVER."
           kubectl get pods -n "$NAMESPACE" --request-timeout=15s   # shows the real error
           exit 1
 
