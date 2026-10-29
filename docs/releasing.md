@@ -85,16 +85,7 @@ The job then waits for a reviewer: it runs in the GitHub Environment `production
 
 Do these in order. Steps 1 and 2 are in the Tailscale admin console, 3 to 5 in GitHub and your terminal.
 
-**1. Tailscale policy** (Access controls, the policy file). Add the tag and a rule that lets it reach only the node's API and UI ports, replacing `<node-tailscale-ip>` with the node's address:
-
-```json
-"tagOwners": { "tag:ci": ["autogroup:admin"] },
-"grants": [
-  { "src": ["tag:ci"], "dst": ["<node-tailscale-ip>"], "ip": ["tcp:6443", "tcp:30002", "tcp:30003", "tcp:30004"] }
-]
-```
-
-Check whether your policy still has the default "allow everything" rule (`"src": ["*"], "dst": ["*"], "ip": ["*"]`): `*` also matches tagged devices, so the CI node would be able to reach everything. Narrow its `src` to `["autogroup:member"]` (your own devices) unless other tagged devices rely on it, and use the console's policy preview to see what changes before saving.
+**1. Tailscale policy.** The policy is maintained in home-lab-infra ([`tailscale/policy.hujson`](https://github.com/avinoamn/home-lab-infra/blob/main/tailscale/policy.hujson), pasted into the console as its [operations.md](https://github.com/avinoamn/home-lab-infra/blob/main/docs/operations.md#tailscale-policy) describes). It gives the tag `tag:ci` a grant to the node's API (6443) and the UI ports, and nothing else. Its own devices are granted through `autogroup:member` rather than `"*"`, because `"*"` also matches tagged devices and would let the CI node reach everything. Nothing to do here unless the ports change.
 
 **2. Tailscale trust credential** (Settings, Trust credentials, Credential, OpenID Connect):
 
@@ -132,8 +123,8 @@ Then run the workflow once with `dry_run` on. It proves the whole chain (OIDC to
 
 ### Rotating and revoking
 
-- **The deployer token** never expires. To rotate: delete the Secret `deployer-token` in `tickertape`, run `make bootstrap` (it recreates the token and your local kubeconfig), and set `KUBE_TOKEN` again.
-- **Tailscale access:** delete the trust credential in the Tailscale console (nothing is stored in GitHub to clean up apart from the client ID and audience), or remove the `tag:ci` grant.
+- **The deployer token** never expires. Rotating it is an admin step in home-lab-infra ([onboarding.md, "Rotating the token"](https://github.com/avinoamn/home-lab-infra/blob/main/docs/onboarding.md#rotating-the-token)): it recreates the token and your local kubeconfig. Then set `KUBE_TOKEN` again (step 4).
+- **Tailscale access:** delete the trust credential in the Tailscale console (nothing is stored in GitHub to clean up apart from the client ID and audience), or remove the `tag:ci` grant from home-lab-infra's policy.
 - **Stop deploys from GitHub entirely:** delete the Environment's secrets, or disable the Deploy workflow in Actions.
 
 ### When it fails

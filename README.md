@@ -73,7 +73,9 @@ More in [docs/development.md](docs/development.md).
 
 ## Running it on Kubernetes
 
-The `tickertape` namespace is one Helm chart, `charts/tickertape` (Postgres StatefulSet, schema Job, poller CronJob, ner and laya Deployments with their services, ingress and ServiceMonitors). Settings are in its `values.yaml`; Secrets are created separately and referenced by name. Monitoring is a second Helm release (`k8s/monitoring/values.yaml`, kube-prometheus-stack). Step-by-step instructions, including the one-time cluster bootstrap, secrets, rollout and rollback, are in [docs/operations.md](docs/operations.md).
+The `tickertape` namespace is one Helm chart, `charts/tickertape` (Postgres StatefulSet, schema Job, poller CronJob, ner and laya Deployments with their services, ingress and ServiceMonitors). Settings are in its `values.yaml`; Secrets are created separately and referenced by name. Step-by-step instructions (first deploy, secrets, rollout and rollback) are in [docs/operations.md](docs/operations.md).
+
+**The cluster itself is not in this repository.** The node, the shared monitoring stack (Prometheus, Alertmanager, Grafana), the `tickertape` namespace with its deploy account, and the Tailscale policy live in [home-lab-infra](https://github.com/avinoamn/home-lab-infra), which several projects share. This repository deploys only into its own namespace. Go there for anything cluster-wide; what this project relies on is listed in [docs/operations.md](docs/operations.md#what-this-project-needs-from-the-cluster).
 
 Each service (`poller`, `ner`, `laya`) and the Helm chart has its own SemVer version and is released by a git tag such as `ner-v0.2.0` or `chart-v0.3.0`: the [release workflow](docs/releasing.md) publishes the image to GHCR or packages the chart, and creates a GitHub Release. A deployment is a chart version, which pins one image tag per service. `make deploy` (a `helm upgrade --install --atomic`) deploys the chart in the checkout, pulling the pinned images from GHCR. The same deployment can also be started from GitHub: the [Deploy workflow](docs/releasing.md#deploying-from-github-actions) joins the private network over Tailscale, shows what would change, and upgrades the release after an approval (a dry run by default).
 
@@ -84,7 +86,6 @@ Each service (`poller`, `ner`, `laya`) and the Helm chart has its own SemVer ver
 | `services/poller`, `services/ner`, `services/laya` | The three services, each with its own `Dockerfile` and pinned `requirements.txt` |
 | `common/` | Shared code: database helpers (claim and retry logic) and JSON logging |
 | `charts/tickertape/` | The Helm chart: Postgres, poller, ner, laya, services, ingress, ServiceMonitors, alert rules, the Grafana dashboards (`dashboards/*.json`, generated), and the idempotent schema (`files/schema.sql`: `items`, `decisions`, `feed_state`) |
-| `k8s/` | Namespace and deploy-identity RBAC (applied once by an admin), and the monitoring Helm values |
 | `grafana/` | Dashboard generator (`gen_dashboards.py` is the source of truth; it writes into the chart), a checker that runs every panel query, and the local Grafana test rig |
 | `training/` | Dataset building, labelling rubric, fine-tuning script and notebook, evaluation, and reports |
 | `scripts/`, `Makefile` | Build, deploy and operations helpers (`make help` lists them) |

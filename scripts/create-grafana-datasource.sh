@@ -3,7 +3,7 @@
 #  - the read-only database role `grafana_ro`, inside postgres-0 (so run it after the first deploy);
 #  - Secret `grafana-datasource` in namespace tickertape, labelled grafana_datasource=1, holding a Grafana datasource
 #    provisioning file (uid `tickertape-pg`, the uid the dashboards use) with the role's password. The monitoring stack's
-#    Grafana sidecar loads it, because it watches this namespace (k8s/monitoring/values.yaml, sidecar.datasources).
+#    Grafana sidecar loads it, because it watches this namespace (home-lab-infra: `grafana: true` in projects/projects.yaml).
 # Idempotent: an existing Secret's password is reused, so re-running re-applies the role's settings and rotates nothing.
 # To rotate: delete the Secret and run this again. The password never touches the repo, argv or logs.
 #   scripts/create-grafana-datasource.sh

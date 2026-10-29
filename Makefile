@@ -12,10 +12,9 @@ TAG   ?=
 PF_SVC  ?= postgres
 PF_PORT ?= 5432
 
-.PHONY: lint test chart-check backup-test backup-pull dashboards verify-dashboards monitoring-secrets monitoring-install grafana-datasource eval-ner backfill dataset eval-laya help bootstrap build deploy port-forward dev-up dev-down dev-poll status logs
+.PHONY: lint test chart-check backup-test backup-pull dashboards verify-dashboards grafana-datasource eval-ner backfill dataset eval-laya help build deploy port-forward dev-up dev-down dev-poll status logs
 
 help:
-	@echo "make bootstrap                      one-time admin step: namespace + deployer RBAC + ~/.kube/tickertape (CHANGES CLUSTER STATE)"
 	@echo "make build [SVC=poller TAG=...]    build tickertape/<svc>:<TAG> locally (TAG defaults to services/<svc>/VERSION)"
 	@echo "make deploy [HELM_ARGS=...]        helm upgrade --install the chart on computa (CHANGES CLUSTER STATE; SEC_USER_AGENT for the first run)"
 	@echo "make port-forward [PF_SVC=postgres PF_PORT=5432]   tunnel a cluster service to localhost"
@@ -30,13 +29,8 @@ help:
 	@echo "make lint | test               ruff and pytest in a python:3.12 container (test uses the dev DB from make dev-up in a throw-away schema)"
 	@echo "make dashboards                      regenerate charts/tickertape/dashboards/*.json from grafana/gen_dashboards.py"
 	@echo "make verify-dashboards              run every dashboard query through a live Grafana (local rig by default)"
-	@echo "make monitoring-secrets             step 4 part 1: namespace, Grafana admin and Alertmanager webhook Secrets (CHANGES CLUSTER STATE)"
-	@echo "make monitoring-install             step 4 part 2: Helm kube-prometheus-stack (CHANGES CLUSTER STATE; the dashboards come with make deploy)"
 	@echo "make grafana-datasource             Grafana's Postgres datasource and read-only DB role, as the deployer (CHANGES CLUSTER STATE)"
 	@echo "make status | logs                  read-only look at the tickertape namespace"
-
-bootstrap:
-	scripts/bootstrap-access.sh
 
 build:
 	scripts/build.sh $(SVC) $(TAG)
@@ -84,12 +78,6 @@ dashboards:
 
 verify-dashboards:
 	python grafana/verify_dashboards.py
-
-monitoring-secrets:
-	scripts/create-monitoring-secrets.sh
-
-monitoring-install:
-	scripts/install-monitoring.sh
 
 grafana-datasource:
 	scripts/create-grafana-datasource.sh

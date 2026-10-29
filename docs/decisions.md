@@ -50,7 +50,9 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 ## Operations
 
-**The cluster is deployed through a namespace-scoped ServiceAccount, not admin access.** Day-to-day deploys cannot touch other namespaces or cluster-scoped objects. Admin access over SSH is used only for the monitoring stack and bootstrapping.
+**Cluster-wide infrastructure lives in its own repository, [home-lab-infra](https://github.com/avinoamn/home-lab-infra).** Several projects share the cluster, and each project owns only its namespace. The node, the monitoring stack, each project's namespace and deploy account, and the Tailscale policy were first written here, because tickertape was the first project. With a second project coming, they moved: a shared monitoring stack configured inside one project would have to know about every other project, and a project repository holding cluster-admin scripts would let any project's change reach the others. The move kept every name and version, and each piece was proven to be a no-op against the live cluster before this repository's copy was removed.
+
+**The cluster is deployed through a namespace-scoped ServiceAccount, not admin access.** Deploys cannot touch other namespaces or cluster-scoped objects. This repository needs no admin access at all: the account, its permissions and the kubeconfig are created by home-lab-infra's onboarding, where admin access stays.
 
 **Every UI gets its own NodePort Service, separate from the ClusterIP Service that carries metrics.** The UIs must open from any device on the private network without a tunnel or per-device setup. They have no authentication, so they stay on a private network.
 

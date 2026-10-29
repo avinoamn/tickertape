@@ -75,14 +75,10 @@ jobs:
             || { echo "::error::charts/tickertape/dashboards is out of date: run 'make dashboards' and commit the result"; exit 1; }
 
   manifests:
-    name: Helm chart and manifests
+    name: Helm chart
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - name: Plain manifests (namespace, RBAC)
-        run: |
-          docker run --rm -v "$PWD:/work" ghcr.io/yannh/kubeconform:v0.8.0 \
-            -strict -ignore-missing-schemas -ignore-filename-pattern 'monitoring/.*' -summary /work/k8s
       - name: Chart (helm lint, render several value sets, kubeconform)
         run: make chart-check
 
