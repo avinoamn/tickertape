@@ -78,20 +78,20 @@ The job then waits for a reviewer: it runs in the GitHub Environment `production
 - Only people with write access can start it, it runs only from `main` (the Environment is limited to that branch), and it needs your approval each time. Forks and pull requests never see the Environment's secrets.
 - It deploys only a tag that is on `main` and has a release, and the release workflow has already checked that tag's images exist.
 - The cluster account is the `deployer` ServiceAccount: it can manage workloads in the `tickertape` namespace and nothing else.
-- There is no stored Tailscale credential. The runner proves who it is with a short-lived GitHub identity token (OIDC federation), joins the tailnet as an **ephemeral node tagged `tag:ci`**, and the Tailscale policy lets that tag reach only the cluster API and the UIs' ports.
+- There is no stored Tailscale credential. The runner proves who it is with a short-lived GitHub identity token (OIDC federation), joins the tailnet as an **ephemeral node tagged `tag:ci-tickertape`**, and the Tailscale policy lets that tag reach only the cluster API and this project's two UI ports. Another project's workflow has its own tag and cannot reach them, and this one cannot reach its UIs or Grafana.
 - The one stored credential is the `deployer` token, which only works inside the tailnet and only inside one namespace.
 
 ### One-time setup
 
 Do these in order. Steps 1 and 2 are in the Tailscale admin console, 3 to 5 in GitHub and your terminal.
 
-**1. Tailscale policy.** The policy is maintained in home-lab-infra ([`tailscale/policy.hujson`](https://github.com/avinoamn/home-lab-infra/blob/main/tailscale/policy.hujson), pasted into the console as its [operations.md](https://github.com/avinoamn/home-lab-infra/blob/main/docs/operations.md#tailscale-policy) describes). It gives the tag `tag:ci` a grant to the node's API (6443) and the UI ports, and nothing else. Its own devices are granted through `autogroup:member` rather than `"*"`, because `"*"` also matches tagged devices and would let the CI node reach everything. Nothing to do here unless the ports change.
+**1. Tailscale policy.** The policy is maintained in home-lab-infra ([`tailscale/policy.hujson`](https://github.com/avinoamn/home-lab-infra/blob/main/tailscale/policy.hujson), pasted into the console as its [operations.md](https://github.com/avinoamn/home-lab-infra/blob/main/docs/operations.md#tailscale-policy) describes). It gives this project's tag, `tag:ci-tickertape`, a grant to the node's API (6443) and tickertape's own UI ports (30002 and 30003), and nothing else. The tag, its grant and a test are generated from tickertape's entry in home-lab-infra's `projects/projects.yaml`. Its own devices are granted through `autogroup:member` rather than `"*"`, because `"*"` also matches tagged devices and would let the CI node reach everything. Nothing to do here unless the ports change.
 
 **2. Tailscale trust credential** (Settings, Trust credentials, Credential, OpenID Connect):
 
 - Issuer: **GitHub Actions**.
 - Subject: your repository's OIDC subject prefix followed by `:environment:production`. Get the prefix with `gh api repos/<owner>/tickertape/actions/oidc/customization/sub --jq .sub_claim_prefix`. Repositories use GitHub's **immutable subject claims**, so the prefix contains numeric IDs and looks like `repo:<owner>@<owner-id>/tickertape@<repo-id>`, giving for example `repo:avinoamn@52762010/tickertape@1403619038:environment:production`. The name-only form `repo:<owner>/tickertape:environment:production` does not match and fails with a 403. The string has no trailing colon.
-- Scope: `auth_keys` (write), with the tag `tag:ci`.
+- Scope: `auth_keys` (write), with the tag `tag:ci-tickertape` (the tag the workflow asks for must be one of the credential's tags).
 - Copy the **client ID** and the **audience** it shows.
 
 **3. The GitHub Environment `production`** (Settings, Environments): required reviewer = you, deployment branches limited to `main`. (Already created for this repository; see "Repository settings this relies on".)
@@ -124,15 +124,15 @@ Then run the workflow once with `dry_run` on. It proves the whole chain (OIDC to
 ### Rotating and revoking
 
 - **The deployer token** never expires. Rotating it is an admin step in home-lab-infra ([onboarding.md, "Rotating the token"](https://github.com/avinoamn/home-lab-infra/blob/main/docs/onboarding.md#rotating-the-token)): it recreates the token and your local kubeconfig. Then set `KUBE_TOKEN` again (step 4).
-- **Tailscale access:** delete the trust credential in the Tailscale console (nothing is stored in GitHub to clean up apart from the client ID and audience), or remove the `tag:ci` grant from home-lab-infra's policy.
+- **Tailscale access:** delete the trust credential in the Tailscale console (nothing is stored in GitHub to clean up apart from the client ID and audience), or remove the `tag:ci-tickertape` grant from home-lab-infra's policy.
 - **Stop deploys from GitHub entirely:** delete the Environment's secrets, or disable the Deploy workflow in Actions.
 
 ### When it fails
 
 | Where | Likely cause |
 |---|---|
-| "Join the tailnet" fails with `token exchange failed with status 403` | The trust credential does not accept GitHub's token. Most often the subject: it must be the repository's OIDC subject prefix plus `:environment:production` (see step 2: with immutable subject claims the prefix contains numeric IDs). Otherwise the scope or tag is wrong, or `TS_OAUTH_CLIENT_ID` / `TS_AUDIENCE` are wrong. |
-| "Reach the cluster" fails | The policy does not let `tag:ci` reach the node on 6443 (step 1), or `KUBE_SERVER` is wrong. A brand new node needs up to a minute to be accepted by its peers; the step retries. |
+| "Join the tailnet" fails with `token exchange failed with status 403` | The trust credential does not accept GitHub's token. Most often the subject: it must be the repository's OIDC subject prefix plus `:environment:production` (see step 2: with immutable subject claims the prefix contains numeric IDs). Otherwise the scope is wrong, the credential does not have the tag `tag:ci-tickertape`, or `TS_OAUTH_CLIENT_ID` / `TS_AUDIENCE` are wrong. |
+| "Reach the cluster" fails | The policy does not let `tag:ci-tickertape` reach the node on 6443 (step 1), or `KUBE_SERVER` is wrong. A brand new node needs up to a minute to be accepted by its peers; the step retries. |
 | "x509: certificate is valid for ..." | `KUBE_TLS_SERVER_NAME` is not a name in the API certificate. |
 | "Unauthorized" / "forbidden" | `KUBE_TOKEN` is stale (the Secret `deployer-token` was recreated) or belongs to another account. |
 | Upgrade times out | The release is rolled back by `--atomic`; read the "What the cluster looks like after a failure" step, and see the troubleshooting table in [operations.md](operations.md). |

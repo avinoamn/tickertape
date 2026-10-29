@@ -134,7 +134,7 @@ Swapping the model should overwrite old answers per `(item, question)`, and `mod
 
 **The trust credential's subject uses GitHub's immutable form** (`repo:<owner>@<owner-id>/<repo>@<repo-id>:environment:production`). Such a subject cannot be inherited by a different repository that later takes over a renamed or deleted name, which is the point of the immutable setting, so the setting is kept and the credential follows it. (The first dry run failed with a 403 because the credential used the name-only form.)
 
-**The Tailscale policy, not the workflow, limits the network reach.** The ephemeral node is tagged `tag:ci` and the policy lets that tag reach only the API port and the UI ports of one node. A compromised workflow cannot be talked into reaching anything else.
+**The Tailscale policy, not the workflow, limits the network reach.** The ephemeral node is tagged `tag:ci-tickertape` and the policy lets that tag reach only the API port and this project's UI ports on one node. A compromised workflow cannot be talked into reaching anything else. The tag is this project's own: at first the workflow used a shared `tag:ci` that also reached Grafana, and with several projects deploying from GitHub a shared tag would let each one's workflow reach the others' UIs.
 
 **A deploy needs the owner's approval in a protected Environment, on a public repository.** Only people with write access can dispatch the workflow, it runs only from `main`, and it deploys only a tag that is on `main` with a published release. A rehearsal (dry run: join, authenticate, show the diff, server-side dry run) is the default so that a careless click changes nothing.
 
