@@ -4,6 +4,13 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
 
 ## [Unreleased]
 
+## chart 0.5.1 - 2026-10-31
+
+### Fixed
+
+- The daily backup works again. Since the platform added NetworkPolicies to the namespace (home-lab-infra), a new pod's first connections are refused until k3s's policy controller admits it, and `pg_dump` connected within a second of starting, so every run failed with "Connection refused" (alerts `BackupJobFailed` and `BackupStale`). The backup and restore-test scripts now wait up to 60 seconds (`PG_WAIT_SECONDS`) for Postgres to accept connections.
+- Upgrading from 0.5.0 only changes the ConfigMap `backup-scripts`: no pod restarts. The next scheduled run picks up the new scripts.
+
 ## chart 0.5.0 - 2026-10-25
 
 ### Added

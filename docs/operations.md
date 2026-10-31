@@ -193,6 +193,8 @@ The chart (`backup.enabled`, on by default) creates:
 | CronJob `postgres-backup` | daily at 03:00 (`backup.schedule`) | `pg_dump -Fc` into the volume `postgres-backups`. The archive is checked to be readable and to hold the data of every table before it replaces anything, and only the newest 14 (`backup.keep`) are kept. |
 | CronJob `postgres-restore-test` | Sundays at 04:30 (`backup.restoreTest.schedule`) | Restores the newest dump into a scratch database on the same server, checks that the tables have data, drops the scratch database, and **fails if the newest dump is older than 36 hours** (`backup.restoreTest.maxAgeHours`), which means backups have stopped. |
 
+Both scripts first wait up to 60 seconds for Postgres to accept connections. A new pod's first connections are refused for a moment, because the namespace's NetworkPolicies (set up by home-lab-infra) let a pod in only once k3s's policy controller has seen it start. Without the wait, the backup's `pg_dump`, which connects within a second of the pod starting, failed every night with "Connection refused". If the logs say `database not reachable after 60s`, Postgres itself is down or unreachable.
+
 A failing job shows in `scripts/kc.sh get jobs -n tickertape` and in the kube-state-metrics job-health data that the Poller dashboard already uses, and it raises an alert (see [Alerts](#alerts)). Look at them, and run either one right now instead of waiting for the schedule:
 
 ```sh
@@ -202,7 +204,7 @@ scripts/kc.sh create job restore-test-now-$(date +%s) --from=cronjob/postgres-re
 scripts/kc.sh logs -n tickertape -l job-name=backup-now-<timestamp>      # one JSON line: file, bytes, how many are kept
 ```
 
-The scripts (`charts/tickertape/files/backup.sh` and `restore-test.sh`) are tested end to end by `make backup-test` (also in CI) against a throw-away Postgres: a good backup, retention, a missing, stale and corrupt backup (the restore test must fail), cleanup of the scratch database, and the disaster-recovery command below.
+The scripts (`charts/tickertape/files/backup.sh` and `restore-test.sh`) are tested end to end by `make backup-test` (also in CI) against a throw-away Postgres: a good backup, retention, a missing, stale and corrupt backup (the restore test must fail), waiting for a server that is not reachable yet (and giving up), cleanup of the scratch database, and the disaster-recovery command below.
 
 ### Copy a dump off the node
 

@@ -93,6 +93,22 @@ DB=postgres sql -c "create database empty_db" > /dev/null
 if job backup.sh -e PGDATABASE=empty_db > /tmp/bk.out 2>&1; then die "backup accepted a database without the tables"; fi
 pass "backup refuses a dump that lacks the tables"
 
+echo "== the scripts wait for a server that is not reachable yet, and give up after PG_WAIT_SECONDS"
+# On the cluster a new pod's first connections are refused until the NetworkPolicies admit it; a stopped server is
+# refused the same way.
+docker stop "$srv" > /dev/null
+if job backup.sh -e PG_WAIT_SECONDS=4 > /tmp/bk.out 2>&1; then die "backup passed with the server down"; fi
+grep -q "database not reachable" /tmp/bk.out || die "backup failed for another reason: $(cat /tmp/bk.out)"
+pass "backup gives up with 'database not reachable'"
+if job restore-test.sh -e BACKUP_MAX_AGE_HOURS=100000 -e PG_WAIT_SECONDS=4 > /tmp/rt.out 2>&1; then die "restore test passed with the server down"; fi
+grep -q "database not reachable" /tmp/rt.out || die "restore test failed for another reason: $(cat /tmp/rt.out)"
+pass "restore test gives up with 'database not reachable'"
+(sleep 5; docker start "$srv" > /dev/null) &
+out=$(job backup.sh)
+wait
+echo "$out" | grep -q '"status": "ok"' || die "backup did not wait for the server: $out"
+pass "backup waited for the server to come back, then succeeded"
+
 echo "== disaster recovery: the documented restore command brings the data back"
 in_volume 'rm -f /backups/tickertape-*.dump'
 job backup.sh > /dev/null
