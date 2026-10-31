@@ -19,6 +19,15 @@ latest=$(ls -1t "$dir"/tickertape-*.dump 2>/dev/null | head -n 1 || true)
 age_hours=$(( ( $(date +%s) - $(stat -c %Y "$latest") ) / 3600 ))
 [ "$age_hours" -le "$max_age_hours" ] || fail "newest backup $(basename "$latest") is $age_hours h old (limit $max_age_hours h): backups have stopped"
 
+# Wait until the server accepts connections, for at most $PG_WAIT_SECONDS (see backup.sh: a new pod's first connections
+# are refused until the NetworkPolicies admit it).
+waited=0
+until pg_isready -q; do
+  [ "$waited" -lt "${PG_WAIT_SECONDS:-60}" ] || fail "database not reachable after ${waited}s"
+  sleep 2
+  waited=$((waited + 2))
+done
+
 admin() { PGOPTIONS="-c client_min_messages=warning" PGDATABASE=postgres psql -v ON_ERROR_STOP=1 -qAt "$@"; }
 trap 'admin -c "DROP DATABASE IF EXISTS $scratch" > /dev/null 2>&1 || true' EXIT
 

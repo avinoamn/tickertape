@@ -9,6 +9,17 @@ stamp=$(date -u +%Y%m%dT%H%M%SZ)
 partial="$dir/.tickertape-$stamp.partial"
 final="$dir/tickertape-$stamp.dump"
 
+# Wait until the server accepts connections, for at most $PG_WAIT_SECONDS. A pod is not let through the namespace's
+# NetworkPolicies for its first moment (k3s's policy controller admits a new pod's address only after it has started),
+# so connecting right away is refused.
+waited=0
+until pg_isready -q; do
+  [ "$waited" -lt "${PG_WAIT_SECONDS:-60}" ] \
+    || { echo "{\"svc\": \"backup\", \"status\": \"error\", \"error\": \"database not reachable after ${waited}s\"}"; exit 1; }
+  sleep 2
+  waited=$((waited + 2))
+done
+
 # A failed run must not leave a half-written file that looks like a backup.
 trap 'rm -f "$partial" "$partial.list"' EXIT
 
