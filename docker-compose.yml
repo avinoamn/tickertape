@@ -69,7 +69,7 @@ services:
   # Grafana http://localhost:3000 (anonymous admin), Prometheus http://localhost:9090. Panels that need
   # kube-state-metrics / cAdvisor (poller job health, laya memory/CPU) stay empty here; check those on the cluster.
   prometheus:
-    image: prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.1
     profiles: ["monitoring"]
     command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=1d"]
     volumes:
