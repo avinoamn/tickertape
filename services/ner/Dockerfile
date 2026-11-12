@@ -1,6 +1,6 @@
 # Build from the repo root so common/ and the poller's feeds.yaml (watchlist) are in the context:
 #   docker build -f services/ner/Dockerfile -t tickertape/ner:0.1.0 .
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/root/.cache/huggingface
